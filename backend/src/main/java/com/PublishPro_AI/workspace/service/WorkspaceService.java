@@ -1,9 +1,13 @@
 package com.PublishPro_AI.workspace.service;
 
+import com.PublishPro_AI.common.exception.ConflictException;
+import com.PublishPro_AI.common.exception.NotFoundException;
 import com.PublishPro_AI.user.entity.User;
 import com.PublishPro_AI.user.repository.UserRepository;
 import com.PublishPro_AI.workspace.authorization.WorkspaceAuthorizationService;
+import com.PublishPro_AI.workspace.dto.AddMemberRequest;
 import com.PublishPro_AI.workspace.dto.CreateWorkspaceRequest;
+import com.PublishPro_AI.workspace.dto.WorkspaceMemberResponse;
 import com.PublishPro_AI.workspace.dto.WorkspaceResponse;
 import com.PublishPro_AI.workspace.entity.Workspace;
 import com.PublishPro_AI.workspace.entity.WorkspaceMember;
@@ -118,5 +122,78 @@ public class WorkspaceService {
                 workspace.getCreatedAt(),
                 workspace.getUpdatedAt()
         );
+    }
+
+    @Transactional
+    public void addMember(
+            Long workspaceId,
+            AddMemberRequest request,
+            String ownerEmail
+    ) {
+        User owner = userRepository.findByEmail(ownerEmail)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("User not found")
+                );
+
+        authorizationService.requireOwner(
+                workspaceId,
+                owner.getId()
+        );
+
+        User userToAdd = userRepository.findByEmail(
+                request.getEmail().trim().toLowerCase()
+        ).orElseThrow(() ->
+                new NotFoundException("User not found")
+        );
+
+        if (workspaceMemberRepository.existsByWorkspaceIdAndUserId(
+                workspaceId,
+                userToAdd.getId()
+        )) {
+            throw new ConflictException(
+                    "User is already a member of this workspace"
+            );
+        }
+
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() ->
+                        new NotFoundException("Workspace not found")
+                );
+
+        WorkspaceMember member = new WorkspaceMember();
+
+        member.setWorkspace(workspace);
+        member.setUser(userToAdd);
+        member.setRole(WorkspaceRole.EDITOR);
+
+        workspaceMemberRepository.save(member);
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkspaceMemberResponse> getMembers(
+            Long workspaceId,
+            String userEmail
+    ) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() ->
+                        new NotFoundException("User not found")
+                );
+
+        authorizationService.requireMember(
+                workspaceId,
+                user.getId()
+        );
+
+        return workspaceMemberRepository
+                .findByWorkspaceId(workspaceId)
+                .stream()
+                .map(member -> new WorkspaceMemberResponse(
+                        member.getUser().getId(),
+                        member.getUser().getName(),
+                        member.getUser().getEmail(),
+                        member.getRole(),
+                        member.getJoinedAt()
+                ))
+                .toList();
     }
 }
