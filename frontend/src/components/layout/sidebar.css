@@ -1,0 +1,38 @@
+
+.sidebar {
+  width: 250px;
+  min-height: 100vh;
+  flex-shrink: 0;
+  padding: 24px 16px;
+  background: #ffffff;
+  border-right: 1px solid #ececf3;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  margin-bottom: 30px;
+  color: #17172b;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #7965f5, #5038d6);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.brand-accent {
+  color: #6550e8;
+}
