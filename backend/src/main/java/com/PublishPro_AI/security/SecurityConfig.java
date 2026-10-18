@@ -1,4 +1,7 @@
+
 package com.PublishPro_AI.security;
+
+import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,96 +11,70 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
 
-    /*
-     * This is the main Spring Security configuration.
-     *
-     * SecurityFilterChain tells Spring:
-     * "For every incoming HTTP request, what security rules should be applied?"
-     */
-    /*
-     * PasswordEncoder is used when:
-     *
-     * 1. Registering a user
-     *      raw password → BCrypt hash → database
-     *
-     * 2. Logging in
-     *      raw password + stored hash → password verification
-     *
-     * We never store the original password.
-     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOrigins(
+                List.of("http://localhost:5173")
+        );
+
+        configuration.setAllowedMethods(
+                List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        );
+
+        configuration.setAllowedHeaders(
+                List.of("Authorization", "Content-Type")
+        );
+
+        configuration.setAllowCredentials(false);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationFilter jwtAuthenticationFilter
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            CustomAuthenticationEntryPoint authenticationEntryPoint
     ) throws Exception {
 
         http
-
-                /*
-                 * CSRF protection is mainly useful for browser-based
-                 * session/cookie authentication.
-                 *
-                 * Our API will use JWTs in the Authorization header,
-                 * so we disable CSRF for this stateless API.
-                 */
+                .cors(cors -> {})
                 .csrf(csrf -> csrf.disable())
-
-                /*
-                 * We are NOT storing login sessions on the server.
-                 *
-                 * Every request will carry its JWT.
-                 *
-                 * STATELESS means:
-                 * Spring Security should not create or maintain
-                 * an HTTP session for authentication.
-                 */
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS
                         )
                 )
-
-                /*
-                 * Define which endpoints are public
-                 * and which require authentication.
-                 */
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                )
                 .authorizeHttpRequests(auth -> auth
-
-                        /*
-                         * Register and Login must be accessible
-                         * without an existing JWT.
-                         */
                         .requestMatchers("/api/auth/**").permitAll()
-
-                        /*
-                         * Everything else requires authentication.
-                         *
-                         * Example:
-                         * GET /api/users/me
-                         *
-                         * Without JWT → 401
-                         * With valid JWT → request continues
-                         */
+                        // Spring forwards unhandled errors (validation 400,
+                        // unexpected 500) to /error. If that is protected
+                        // too, every such error is reported as 403.
+                        .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )
-
-                /*
-                 * Our JWT filter must run BEFORE Spring's
-                 * normal username/password authentication filter.
-                 *
-                 * Why?
-                 *
-                 * We want to inspect the JWT first and create an
-                 * authenticated SecurityContext before the controller runs.
-                 */
                 .addFilterBefore(
                         jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class

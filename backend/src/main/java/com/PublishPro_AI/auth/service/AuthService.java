@@ -4,6 +4,8 @@ import com.PublishPro_AI.auth.dto.AuthResponse;
 import com.PublishPro_AI.auth.dto.LoginRequest;
 import com.PublishPro_AI.auth.dto.RegisterRequest;
 import com.PublishPro_AI.auth.token.JwtService;
+import com.PublishPro_AI.common.exception.ConflictException;
+import com.PublishPro_AI.common.exception.UnauthorizedException;
 import com.PublishPro_AI.user.dto.UserResponse;
 import com.PublishPro_AI.user.entity.User;
 import com.PublishPro_AI.user.repository.UserRepository;
@@ -37,7 +39,7 @@ public class AuthService {
                 .toLowerCase(Locale.ROOT);
 
         if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("Email is already registered");
+            throw new ConflictException("Email is already registered");
         }
 
         User user = new User();
@@ -66,13 +68,13 @@ public class AuthService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new UnauthorizedException(
                                 "Invalid email or password"
                         )
                 );
 
         if (!Boolean.TRUE.equals(user.getEnabled())) {
-            throw new IllegalArgumentException(
+            throw new UnauthorizedException(
                     "Invalid email or password"
             );
         }
@@ -83,7 +85,7 @@ public class AuthService {
         );
 
         if (!passwordMatches) {
-            throw new IllegalArgumentException(
+            throw new UnauthorizedException(
                     "Invalid email or password"
             );
         }

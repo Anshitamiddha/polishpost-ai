@@ -1,0 +1,48 @@
+.dashboard-page {
+  padding: 28px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.dashboard-page h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 750;
+  letter-spacing: -0.9px;
+  line-height: 1.2;
+  color: #17172b;
+}
+
+.dashboard-page > p {
+  margin: 8px 0 0;
+  color: #6c6c85;
+  font-size: 15px;
+}
+
+.profile-card {
+  max-width: 520px;
+  margin-top: 24px;
+  padding: 20px 24px;
+  border: 1px solid #ececf3;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.profile-card dl {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+
+.profile-card dt {
+  color: #6c6c85;
+  font-size: 12px;
+}
+
+.profile-card dd {
+  margin: 4px 0 0;
+  color: #17172b;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

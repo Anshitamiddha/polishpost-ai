@@ -1,0 +1,218 @@
+/* Create-workspace dialog. Palette follows the login page: red accent with
+   warm greys, plus silver for borders and neutral buttons. */
+
+.ws-modal-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  padding: 20px;
+  place-items: center;
+  background: rgb(36 31 36 / 45%);
+}
+
+.ws-modal {
+  --ws-red: #d93645;
+  --ws-red-dark: #b92334;
+  --ws-red-soft: #fff0f1;
+  --ws-text: #241f24;
+  --ws-muted: #89818a;
+  --ws-silver: #c0c4cc;
+  --ws-silver-light: #eef0f3;
+  --ws-silver-lighter: #f7f8fa;
+
+  width: 100%;
+  max-width: 440px;
+  padding: 28px;
+  border: 1px solid var(--ws-silver-light);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgb(36 31 36 / 22%);
+  color: var(--ws-text);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.ws-modal *,
+.ws-modal *::before,
+.ws-modal *::after {
+  box-sizing: border-box;
+}
+
+.ws-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ws-modal-header h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+}
+
+.ws-modal-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--ws-silver-light);
+  border-radius: 9px;
+  background: #ffffff;
+  color: var(--ws-muted);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.ws-modal-close:hover:not(:disabled) {
+  border-color: var(--ws-silver);
+  background: var(--ws-silver-lighter);
+}
+
+.ws-modal-hint {
+  margin: 10px 0 22px;
+  color: var(--ws-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.ws-modal-hint strong {
+  color: var(--ws-text);
+  font-weight: 700;
+}
+
+.ws-modal-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-modal-form label {
+  margin-bottom: 9px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ws-modal-form input {
+  width: 100%;
+  height: 48px;
+  padding: 0 13px;
+  border: 1px solid #e8e2e5;
+  border-radius: 9px;
+  outline: none;
+  background: #ffffff;
+  color: var(--ws-text);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.ws-modal-form input::placeholder {
+  color: #b5adb4;
+}
+
+.ws-modal-form input:focus {
+  border-color: var(--ws-red);
+  box-shadow: 0 0 0 3px #d9364515;
+}
+
+.ws-modal-error {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f8d6da;
+  border-radius: 9px;
+  background: var(--ws-red-soft);
+  color: var(--ws-red-dark);
+  font-size: 13px;
+}
+
+.ws-modal-success {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--ws-silver);
+  border-radius: 9px;
+  background: var(--ws-silver-lighter);
+  color: #30343b;
+  font-size: 13px;
+}
+
+.ws-modal-success span {
+  font-weight: 700;
+}
+
+.ws-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.ws-button {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.ws-button.primary {
+  border: 0;
+  background: var(--ws-red);
+  box-shadow: 0 6px 15px #d9364525;
+  color: #ffffff;
+}
+
+.ws-button.primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--ws-red-dark);
+}
+
+.ws-button.secondary {
+  border: 1px solid var(--ws-silver);
+  background: #ffffff;
+  color: #4a4f58;
+}
+
+.ws-button.secondary:hover:not(:disabled) {
+  background: var(--ws-silver-lighter);
+}
+
+.ws-button:disabled,
+.ws-modal-close:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ws-modal button:focus-visible {
+  outline: 3px solid #d9364580;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .ws-modal {
+    padding: 22px;
+  }
+
+  .ws-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .ws-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-button,
+  .ws-modal-close,
+  .ws-modal-form input {
+    transition: none;
+  }
+}
