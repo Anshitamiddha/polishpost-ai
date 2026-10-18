@@ -3,9 +3,8 @@ package com.PublishPro_AI.workspace.authorization;
 import com.PublishPro_AI.common.exception.ForbiddenException;
 import com.PublishPro_AI.workspace.entity.WorkspaceMember;
 import com.PublishPro_AI.workspace.repository.WorkspaceMemberRepository;
-import org.springframework.stereotype.Service;
-import com.PublishPro_AI.common.exception.ForbiddenException;
 import com.PublishPro_AI.workspace.entity.WorkspaceRole;
+import org.springframework.stereotype.Service;
 
 @Service
 public class WorkspaceAuthorizationService {

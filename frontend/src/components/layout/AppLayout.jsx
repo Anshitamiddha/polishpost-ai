@@ -1,14 +1,22 @@
+import { Outlet } from "react-router-dom";
+import WorkspaceProvider from "../../features/workspace/WorkspaceProvider";
 import Sidebar from "./Sidebar";
-function Applayout (){
+import Topbar from "./Topbar";
+
+function AppLayout (){
     return(
-        <div className="app-layout">
-            <Sidebar />
-            <main className="main-content">
-                <h1>Main Content</h1>
-                <p>This is the main content area.</p>
-            </main>
-        </div>
+        // The provider sits here, inside the protected routes, so the
+        // workspace list is only fetched for a logged-in user.
+        <WorkspaceProvider>
+            <div className="app-layout">
+                <Sidebar />
+                <main className="main-area">
+                    <Topbar />
+                    <Outlet />
+                </main>
+            </div>
+        </WorkspaceProvider>
     );
 }
 
-export default Applayout;
+export default AppLayout;

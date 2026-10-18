@@ -1,0 +1,347 @@
+/* Team / Members page. Palette follows the login page: red accent with warm
+   greys, plus silver for borders, avatars and neutral badges. */
+
+.team-page {
+  --tm-red: #d93645;
+  --tm-red-dark: #b92334;
+  --tm-red-soft: #fff0f1;
+  --tm-red-border: #f8d6da;
+  --tm-text: #241f24;
+  --tm-muted: #89818a;
+  --tm-silver: #c0c4cc;
+  --tm-silver-dark: #8b9099;
+  --tm-silver-light: #eef0f3;
+  --tm-silver-lighter: #f7f8fa;
+
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 28px;
+  color: var(--tm-text);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.team-page *,
+.team-page *::before,
+.team-page *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- Heading ---------- */
+
+.team-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.team-header h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 750;
+  letter-spacing: -0.9px;
+  line-height: 1.2;
+}
+
+.team-header p {
+  margin: 8px 0 0;
+  color: var(--tm-muted);
+  font-size: 15px;
+}
+
+.team-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.team-role-chip {
+  padding: 9px 16px;
+  border: 1px solid var(--tm-silver);
+  border-radius: 999px;
+  background: var(--tm-silver-lighter);
+  color: #4a4f58;
+  font-size: 13px;
+}
+
+.team-role-chip strong {
+  color: var(--tm-red-dark);
+  font-weight: 700;
+}
+
+/* ---------- Cards ---------- */
+
+.team-card {
+  max-width: 900px;
+  margin: 0;
+  padding: 22px 24px;
+  border: 1px solid var(--tm-silver-light);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(36 31 36 / 4%);
+}
+
+.team-card h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.team-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.team-count {
+  min-width: 26px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--tm-silver-light);
+  color: #4a4f58;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.team-note {
+  max-width: 900px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--tm-silver);
+  border-radius: 12px;
+  background: var(--tm-silver-lighter);
+  color: #4a4f58;
+  font-size: 14px;
+}
+
+/* ---------- Buttons ---------- */
+
+.team-button {
+  min-height: 46px;
+  padding: 0 20px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.team-button.primary {
+  border: 0;
+  background: var(--tm-red);
+  box-shadow: 0 6px 15px #d9364525;
+  color: #ffffff;
+}
+
+.team-button.primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--tm-red-dark);
+}
+
+.team-button.secondary {
+  border: 1px solid var(--tm-silver);
+  background: #ffffff;
+  color: #4a4f58;
+}
+
+.team-button.secondary:hover:not(:disabled) {
+  background: var(--tm-silver-lighter);
+}
+
+.team-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------- Members table ---------- */
+
+.team-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.team-table th {
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--tm-silver-light);
+  color: var(--tm-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.team-table td {
+  padding: 14px 12px 14px 0;
+  border-bottom: 1px solid var(--tm-silver-light);
+  vertical-align: middle;
+}
+
+.team-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.team-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.team-avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid var(--tm-silver);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #eceef1, #c0c4cc);
+  color: #3b3f47;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.team-avatar.owner {
+  border-color: transparent;
+  background: linear-gradient(135deg, #e5525f, var(--tm-red));
+  color: #ffffff;
+}
+
+.team-member-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.team-member-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.team-member-email {
+  overflow: hidden;
+  color: var(--tm-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-you {
+  padding: 1px 7px;
+  border: 1px solid var(--tm-silver);
+  border-radius: 999px;
+  background: var(--tm-silver-lighter);
+  color: #4a4f58;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 4px 11px;
+  border: 1px solid var(--tm-silver);
+  border-radius: 999px;
+  background: var(--tm-silver-light);
+  color: #4a4f58;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.role-badge.owner {
+  border-color: var(--tm-red-border);
+  background: var(--tm-red-soft);
+  color: var(--tm-red-dark);
+}
+
+.team-col-joined {
+  color: var(--tm-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ---------- Loading / error / empty states ---------- */
+
+.team-state {
+  margin: 0;
+  color: var(--tm-muted);
+  font-size: 14px;
+}
+
+.team-state p {
+  margin: 0 0 12px;
+}
+
+.team-card.team-state {
+  padding: 28px 24px;
+}
+
+.team-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 32px 28px;
+  border-style: dashed;
+  border-color: var(--tm-silver);
+  background: var(--tm-silver-lighter);
+}
+
+.team-empty h2 {
+  font-size: 22px;
+}
+
+.team-empty p {
+  max-width: 460px;
+  margin: 0 0 12px;
+  color: var(--tm-muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.team-page button:focus-visible {
+  outline: 3px solid #d9364580;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .team-page {
+    padding: 20px 16px;
+  }
+
+  .team-header {
+    flex-direction: column;
+  }
+
+  .team-header h1 {
+    font-size: 28px;
+  }
+
+  .team-header-actions {
+    justify-content: flex-start;
+  }
+
+  .team-col-joined {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-button {
+    transition: none;
+  }
+}
