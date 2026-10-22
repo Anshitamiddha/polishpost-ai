@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Test and tooling output
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration and secrets: never commit real values
+.env
+.env.*
+# ...but keep the placeholder template. (The repo root .gitignore also lists
+# .env.example, so it has to be re-included here.)
+!.env.example
