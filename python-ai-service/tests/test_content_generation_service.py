@@ -1,6 +1,8 @@
 """Tests for the Groq caption/hashtag service. The provider is always faked."""
 
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -359,6 +361,29 @@ def test_the_service_is_built_once_and_reused(monkeypatch):
 
     assert first is second
     first.close()
+
+
+def test_many_threads_asking_at_once_still_build_only_one_client(monkeypatch):
+    # Routes run in a thread pool, so on a cold start many threads ask together.
+    # Before the lock, 16 simultaneous callers built 16 clients.
+    use_settings(monkeypatch, groq_api_key=SecretStr(SECRET))
+    built = []
+    real_openai = service_module.OpenAI
+
+    def slow_openai(*args, **kwargs):
+        time.sleep(0.05)  # widens the window so a race would show every time
+        client = real_openai(*args, **kwargs)
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(service_module, "OpenAI", slow_openai)
+
+    with ThreadPoolExecutor(16) as pool:
+        services = list(pool.map(lambda _: get_content_generation_service(), range(16)))
+
+    assert len(built) == 1
+    assert all(found is services[0] for found in services)
+    services[0].close()
 
 
 def test_the_client_is_built_from_settings_with_sdk_retries_turned_off(monkeypatch):

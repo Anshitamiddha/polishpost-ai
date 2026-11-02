@@ -5,10 +5,10 @@ into HTTP status codes with one `except` per class. The messages are fixed
 text that is safe to show to end users: no provider details, no secrets. The
 original provider error stays attached as `__cause__` and in the server logs.
 
-Suggested HTTP mapping for Phase 3:
+The HTTP mapping lives in app/api/routes/content.py (STATUS_FOR_ERROR):
 
-    ProviderAuthError         -> 502  (our key is wrong; alert us, not the user)
-    ProviderRateLimitError    -> 429  (or 503)
+    ProviderAuthError         -> 503  (our key is missing or wrong; alert us, not the user)
+    ProviderRateLimitError    -> 429
     ProviderUnavailableError  -> 503
     ProviderRequestError      -> 502  (our request was refused; a bug on our side)
     InvalidModelOutputError   -> 502  (the model answered, but not with usable data)

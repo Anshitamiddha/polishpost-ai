@@ -6,6 +6,7 @@ Phase 3 can wrap it in an endpoint and the tests can run it with a fake client.
 
 import json
 import logging
+import threading
 import time
 import unicodedata
 from functools import lru_cache
@@ -141,8 +142,8 @@ class ContentGenerationService:
 
 
 @lru_cache
-def get_content_generation_service() -> ContentGenerationService:
-    """Build the shared service once; every later call reuses it (like get_settings)."""
+def _build_service() -> ContentGenerationService:
+    """Build the service from the settings. Called through the lock below."""
     settings = get_settings()
     key = settings.groq_api_key
     if key is None or not key.get_secret_value().strip():
@@ -158,6 +159,24 @@ def get_content_generation_service() -> ContentGenerationService:
         max_retries=0,
     )
     return ContentGenerationService(client, settings.groq_model)
+
+
+_build_lock = threading.Lock()
+
+
+def get_content_generation_service() -> ContentGenerationService:
+    """Return the shared service, building it on the first call.
+
+    lru_cache alone is not enough: routes run in a thread pool, and on a cold start
+    every thread can miss the cache at once and build its own client (16 requests
+    built 16 clients). The lock makes the first caller build it while the rest wait.
+    """
+    with _build_lock:
+        return _build_service()
+
+
+# Tests (and a future shutdown hook) reset the shared service through this.
+get_content_generation_service.cache_clear = _build_service.cache_clear
 
 
 def _to_service_error(exc: APIError) -> ContentGenerationError:

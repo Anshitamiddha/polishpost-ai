@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api.routes import health
+from app.api.routes import content, health
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -16,3 +16,4 @@ app = FastAPI(
 
 # Every route lives under /api/v1 so a future /api/v2 can sit beside it.
 app.include_router(health.router, prefix="/api/v1")
+app.include_router(content.router, prefix="/api/v1")
