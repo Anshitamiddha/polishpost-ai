@@ -1,33 +1,54 @@
-function VideoDetailsForm() {
+import { useId } from "react";
+
+import CharacterCounter from "./CharacterCounter";
+import { VideoIcon } from "./icons";
+
+// `topic` and `description` are the objects returned by useLimitedText.
+function VideoDetailsForm({ topic, description }) {
+  const titleId = useId();
+  const topicId = useId();
+  const descriptionId = useId();
+  const counterId = useId();
+
   return (
-    <section className="content-panel">
-      <h2>Video details</h2>
+    <section className="cg-card" aria-labelledby={titleId}>
+      <header className="cg-card-head">
+        <span className="cg-card-icon">
+          <VideoIcon />
+        </span>
+        <h2 id={titleId}>Video details</h2>
+      </header>
 
-      <p className="panel-description">
-        Add the context needed to prepare your content.
-      </p>
-
-      <div className="form-field">
-        <label htmlFor="video-title">
-          Video topic or title
+      <div className="cg-field">
+        <label htmlFor={topicId}>
+          Video topic or title <span className="cg-required">Required</span>
         </label>
-
         <input
-          id="video-title"
+          id={topicId}
           type="text"
-          placeholder="e.g. Building my first AI project"
+          required
+          maxLength={topic.maxLength}
+          value={topic.value}
+          onChange={topic.onChange}
+          placeholder="e.g. I built an AI app in 7 days"
         />
       </div>
 
-      <div className="form-field">
-        <label htmlFor="video-description">
-          Video description
-        </label>
-
+      <div className="cg-field">
+        <label htmlFor={descriptionId}>What is this video about?</label>
         <textarea
-          id="video-description"
+          id={descriptionId}
           rows={4}
-          placeholder="Describe what happens in your video..."
+          aria-describedby={counterId}
+          maxLength={description.maxLength}
+          value={description.value}
+          onChange={description.onChange}
+          placeholder="Describe the video, audience, and key takeaway..."
+        />
+        <CharacterCounter
+          id={counterId}
+          length={description.length}
+          max={description.maxLength}
         />
       </div>
     </section>
