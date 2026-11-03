@@ -13,7 +13,7 @@ from pydantic import SecretStr
 
 from app.api.routes import content as content_module
 from app.api.routes.content import get_generation_service
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.main import app
 from app.schemas.generation import GenerationRequest, GenerationResponse
 from app.services import content_generation_service as service_module
@@ -33,6 +33,12 @@ from app.services.errors import (
 URL = "/api/v1/content/generate"
 SECRET = "gsk_SUPER_SECRET_key_123"
 
+# These tests are about content generation, so they start out logged in. The
+# login rules themselves are tested in test_internal_auth.py.
+TOKEN_HEADER = "X-Internal-Service-Token"
+TOKEN = "test-only-service-token"
+TEST_SETTINGS = Settings(_env_file=None, ai_service_shared_secret=SecretStr(TOKEN))
+
 GOOD_RESULT = GenerationResponse(
     captions=["Sunrise, boots on, phone off.", "Who else hikes before breakfast?"],
     hashtags=["#hiking", "#sunrise", "#alps"],
@@ -46,6 +52,7 @@ GOOD_RESULT = GenerationResponse(
 def clean_state():
     """Undo overrides and the cached service so tests cannot affect each other."""
     get_content_generation_service.cache_clear()
+    app.dependency_overrides[get_settings] = lambda: TEST_SETTINGS
     yield
     app.dependency_overrides.clear()
     get_content_generation_service.cache_clear()
@@ -53,7 +60,7 @@ def clean_state():
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(app)
+    return TestClient(app, headers={TOKEN_HEADER: TOKEN})
 
 
 @pytest.fixture

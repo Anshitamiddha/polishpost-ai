@@ -12,16 +12,35 @@ You send it a video topic. It sends back ready-to-use captions and hashtags.
 - It checks everything Groq says before passing it on. Broken answers are turned into an error, never passed along as if they were fine.
 - It has a health check and a built-in page (`/docs`) where you can try it by hand.
 
-It does **not** have login yet, and it is **not** connected to Spring Boot or React yet.
+Only the Spring Boot backend is allowed to ask for content. Every request must carry a secret password (a shared secret) in a header. See [The service login](#the-service-login) below. It is **not** connected to Spring Boot or React yet, so for now you send that header yourself when you try it out.
 
 ## How a request travels
 
-1. Someone sends `POST /api/v1/content/generate` with a topic.
-2. FastAPI checks the request against the rules in `schemas/generation.py`. If something is wrong, it answers `422` and stops.
-3. The route (`api/routes/content.py`) hands the request to the service. The route itself does no AI work.
-4. The service (`services/content_generation_service.py`) builds the instructions, asks Groq, and waits.
-5. The service checks Groq's answer, tidies the hashtags, and checks it against the response rules.
-6. The route sends back `captions` and `hashtags`. If anything failed on the way, it sends an error instead.
+1. Someone sends `POST /api/v1/content/generate` with a topic and the `X-Internal-Service-Token` header.
+2. The token check (`core/security.py`) runs first. No token or the wrong token means `401`. No secret set on the server means `503`. Either way the request stops here.
+3. FastAPI checks the request against the rules in `schemas/generation.py`. If something is wrong, it answers `422` and stops.
+4. The route (`api/routes/content.py`) hands the request to the service. The route itself does no AI work.
+5. The service (`services/content_generation_service.py`) builds the instructions, asks Groq, and waits.
+6. The service checks Groq's answer, tidies the hashtags, and checks it against the response rules.
+7. The route sends back `captions` and `hashtags`. If anything failed on the way, it sends an error instead.
+
+The health check (`GET /api/v1/health`) skips step 2. Anyone can call it.
+
+## The service login
+
+Think of it like a door with a password. Spring Boot and this service both know the same secret. Spring Boot sends it in a header called `X-Internal-Service-Token`. This service compares it with its own copy and only opens the door if they match.
+
+- The secret lives in the `AI_SERVICE_SHARED_SECRET` setting. Spring Boot will need the same value later.
+- It is compared in a way that does not leak how many letters were right (`secrets.compare_digest`).
+- A missing token and a wrong token get the same `401` answer, so a stranger learns nothing.
+- The secret is never printed in a log or sent back in an answer.
+- A blank secret counts as "not set". Otherwise an empty header could slip through.
+
+Make a good secret like this, then paste it into `.env`:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
 
 ## What has been built so far
 
@@ -31,6 +50,7 @@ It does **not** have login yet, and it is **not** connected to Spring Boot or Re
 | Phase 1 | The rules for the request and the response (`schemas/generation.py`) |
 | Phase 2 | The service that talks to Groq and checks the answer (`services/`) |
 | Phase 3 | The endpoint `POST /api/v1/content/generate` and the error codes |
+| Phase 4, step 1 | The service login: only requests with the shared secret may generate content (`core/security.py`) |
 
 ## What you need
 
@@ -57,7 +77,10 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Then open `.env` and add your Groq key as `GROQ_API_KEY=...`. Keep it only in `.env`. Never paste it into code or chat.
+Then open `.env` and add two things. Keep both only in `.env`. Never paste them into code or chat.
+
+- Your Groq key as `GROQ_API_KEY=...`
+- A shared secret as `AI_SERVICE_SHARED_SECRET=...` (see [The service login](#the-service-login) for how to make one)
 
 If step 2 says "running scripts is disabled on this system", allow scripts for this PowerShell window only, then try again:
 
@@ -73,7 +96,7 @@ You can also skip step 2 and call the environment's Python directly, for example
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-- `--host 127.0.0.1` means only your own computer can reach it. Keep it that way for now, because there is no login yet.
+- `--host 127.0.0.1` means only your own computer can reach it. Keep it that way for now. The shared secret is a good lock, but there is no reason to leave the door open to the network.
 - `--reload` restarts the server when you edit code. Leave it out outside development.
 - Stop the server with `Ctrl+C`.
 
@@ -83,7 +106,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 pytest
 ```
 
-All tests use fakes. They never call Groq, so they cost nothing and need no internet or key.
+All tests use fakes. They never call Groq, so they cost nothing and need no internet or key. They also set their own made-up test secret, so your real one is never used or printed.
 
 ## Try it out
 
@@ -92,13 +115,15 @@ All tests use fakes. They never call Groq, so they cost nothing and need no inte
 1. Start the server.
 2. Open <http://127.0.0.1:8000/docs>.
 3. Click `POST /api/v1/content/generate`, then **Try it out**.
-4. Change the example, then click **Execute**. The answer appears below.
+4. Paste your shared secret into the `X-Internal-Service-Token` box.
+5. Change the example, then click **Execute**. The answer appears below.
 
 ### From PowerShell
 
 ```powershell
 $body = @{ video_topic = "Sunrise hike in the Alps"; tone = "inspiring"; keywords = @("hiking", "alps") } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/content/generate -ContentType "application/json" -Body $body
+$headers = @{ "X-Internal-Service-Token" = "paste-your-shared-secret-here" }
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/content/generate -Headers $headers -ContentType "application/json" -Body $body
 ```
 
 Heads-up: Windows PowerShell 5.1 may show emoji and long dashes as garbage characters (like `â` or `ð`). The service sends them correctly. PowerShell 5.1 just reads them wrongly. The `/docs` page shows them properly.
@@ -147,10 +172,11 @@ A failure is never sent back as a normal `200` answer. You get an error code and
 
 | You see | What it means | What to do |
 |---|---|---|
+| `401` | The `X-Internal-Service-Token` header is missing or does not match. | Send the same secret that is in the service's `.env`. |
 | `422` | Something is wrong with what you sent. The message names the field. | Fix the request. |
 | `429` | Groq says its limit is used up for now. | Wait a little, then try again. |
 | `502` | Groq answered, but not with something usable (for example a broken hashtag). | Try again. If it keeps happening, look at the server log. |
-| `503` | The key is missing or wrong, or Groq is down or too slow. | Check `GROQ_API_KEY` in `.env` and your internet, then try again. |
+| `503` | Either `AI_SERVICE_SHARED_SECRET` is not set on the server, or the Groq key is missing or wrong, or Groq is down or too slow. | The message says which one. Check `AI_SERVICE_SHARED_SECRET` and `GROQ_API_KEY` in `.env` and your internet, then try again. |
 | `500` | A bug on our side. | Look at the server log. |
 
 The server log is the terminal window where the server is running. That is where the full details go, so they never reach the person who made the request.
@@ -163,6 +189,7 @@ Settings come from environment variables. For local work, put them in the `.env`
 
 | Setting | Needed? | What it is |
 |---|---|---|
+| `AI_SERVICE_SHARED_SECRET` | Yes, to use the content endpoint | The password Spring Boot must send in `X-Internal-Service-Token`. Without it the endpoint answers `503`. |
 | `GROQ_API_KEY` | Yes, for captions and hashtags | Your Groq key. Without it the endpoint answers `503`. |
 | `GROQ_MODEL` | No | Defaults to `openai/gpt-oss-20b` |
 | `GROQ_BASE_URL` | No | Defaults to `https://api.groq.com/openai/v1` |
@@ -181,6 +208,7 @@ python-ai-service/
 |   |-- api/routes/health.py    GET /api/v1/health
 |   |-- api/routes/content.py   POST /api/v1/content/generate, and which error becomes which code
 |   |-- core/config.py          reads the settings (env vars and .env)
+|   |-- core/security.py        checks the shared secret in X-Internal-Service-Token
 |   |-- schemas/generation.py   the rules for the request and the response
 |   `-- services/
 |       |-- content_generation_service.py  asks Groq and checks the answer
@@ -189,7 +217,8 @@ python-ai-service/
 |   |-- test_health.py                        health check and docs page
 |   |-- test_generation_schemas.py            the request and response rules
 |   |-- test_content_generation_service.py    the Groq service (Groq is faked)
-|   `-- test_content_api.py                   the endpoint (Groq is faked)
+|   |-- test_content_api.py                   the endpoint (Groq is faked)
+|   `-- test_internal_auth.py                 the shared-secret check
 |-- test_groq_text.py           a manual check that your Groq key works (makes one real call)
 |-- pytest.ini                  lets `pytest` find the `app` folder
 |-- requirements.txt            the exact package versions
@@ -200,9 +229,16 @@ python-ai-service/
 ## Ground rules
 
 - **No database here.** This service never touches PostgreSQL. Spring Boot owns the data.
-- **No login here yet.** Login between Spring Boot and this service comes in a later step, before anything but your own computer can reach it.
+- **No user login here.** This service never sees a user's JWT. Spring Boot checks the user, then proves itself to this service with the shared secret.
+- **Only the backend calls this.** React never talks to it directly, and the secret never goes to the browser.
 - **Text only for now.** Images and thumbnails come later and will be kept separate from the text part.
+
+## Good to know
+
+- The health check is public on purpose, so it can be used to see if the service is up. It shows only the name and version.
+- A request whose body is not valid JSON at all gets a `422` even without a token, because FastAPI reads the body before it runs the token check. It still never reaches the AI.
+- Any new endpoint that should be private must add `dependencies=[Depends(require_internal_service)]`. It is not automatic.
 
 ## What is next
 
-Not built yet: connecting Spring Boot to this endpoint, login between the two services, and image generation with Gemini.
+Not built yet: connecting Spring Boot to this endpoint (it must send the same shared secret), and image generation with Gemini.
