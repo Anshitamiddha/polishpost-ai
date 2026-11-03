@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.core.security import require_internal_service
 from app.schemas.generation import GenerationRequest, GenerationResponse
 from app.services.content_generation_service import (
     ContentGenerationService,
@@ -74,7 +75,11 @@ GenerationServiceDep = Annotated[ContentGenerationService, Depends(get_generatio
     "/generate",
     response_model=GenerationResponse,
     summary="Generate captions and hashtags for a video",
+    # Dependencies listed here run first, so a caller without the token never
+    # gets as far as building the service or reaching the AI provider.
+    dependencies=[Depends(require_internal_service)],
     responses={
+        401: {"model": ErrorResponse, "description": "Missing or wrong internal service token"},
         429: {"model": ErrorResponse, "description": "The AI provider's limit was reached"},
         500: {"model": ErrorResponse, "description": "Unexpected server error"},
         502: {"model": ErrorResponse, "description": "The AI provider gave no usable answer"},

@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     groq_model: str = "openai/gpt-oss-20b"
     groq_base_url: str = "https://api.groq.com/openai/v1"
 
+    # Shared secret that Spring Boot sends in X-Internal-Service-Token.
+    # Optional here so the app can still start; the content endpoint answers
+    # 503 until it is set.
+    ai_service_shared_secret: SecretStr | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
