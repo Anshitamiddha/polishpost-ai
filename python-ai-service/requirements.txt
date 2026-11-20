@@ -1,12 +1,7 @@
-# Runtime
-fastapi==0.156.8
-uvicorn==0.54.0
-pydantic-settings==2.16.1
-
-# Testing (httpx2 is what FastAPI/Starlette's TestClient now expects)
-pytest==9.1.1
-httpx2==2.16.0
-
-# AI providers (Groq is called through the OpenAI SDK; Gemini is for images)
-openai==3.36.0
-google-genai==2.32.0
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic-settings>=2.6,<3.0
+google-genai>=2.32,<3.0
+magic-hour>=0.98.1,<0.99
+boto3>=1.44,<2.0
+Pillow>=10.0,<12.0

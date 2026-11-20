@@ -1,64 +1,22 @@
-import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends
 
+from app.api.errors import ErrorResponse, to_http_error
 from app.core.security import require_internal_service
 from app.schemas.generation import GenerationRequest, GenerationResponse
 from app.services.content_generation_service import (
     ContentGenerationService,
     get_content_generation_service,
 )
-from app.services.errors import (
-    ContentGenerationError,
-    InvalidModelOutputError,
-    ProviderAuthError,
-    ProviderRateLimitError,
-    ProviderRequestError,
-    ProviderUnavailableError,
-)
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/content", tags=["content"])
-
-# Which HTTP status each service error becomes. The error's own message is fixed
-# text that is safe to show, so it can go straight into the response.
-STATUS_FOR_ERROR = {
-    ProviderAuthError: 503,  # our key is missing or rejected: not the caller's fault
-    ProviderRateLimitError: 429,
-    ProviderUnavailableError: 503,  # timeouts, network trouble, provider outage
-    ProviderRequestError: 502,
-    InvalidModelOutputError: 502,
-}
-
-
-class ErrorResponse(BaseModel):
-    detail: str
-
-
-def to_http_error(exc: Exception) -> HTTPException:
-    """Turn any failure into a JSON error that leaks nothing."""
-    if isinstance(exc, ContentGenerationError):
-        # isinstance, not an exact-class lookup, so a subclass keeps its parent's
-        # status. An error we forgot to list is still a failure, never a 200.
-        status = next(
-            (code for error_class, code in STATUS_FOR_ERROR.items() if isinstance(exc, error_class)),
-            500,
-        )
-        return HTTPException(status, detail=str(exc))
-
-    # Something we did not plan for. The traceback goes to our log only; the
-    # caller gets a bland message, since the real one might hold sensitive text.
-    logger.error("Unexpected error while generating content", exc_info=exc)
-    return HTTPException(500, detail="Internal server error.")
 
 
 def get_generation_service() -> ContentGenerationService:
     """Give the route the shared service.
 
-    Building it can fail (for example when GROQ_API_KEY is missing). That happens
+    Building it can fail (for example when GEMINI_API_KEY is missing). That happens
     before the route body runs, so the route's own try/except would never see
     it. Mapping the error here keeps every failure in the same JSON shape.
     """

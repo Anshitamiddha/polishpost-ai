@@ -2,8 +2,9 @@
 """Application settings loaded from environment variables or .env."""
 
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,15 +18,36 @@ class Settings(BaseSettings):
     app_name: str = "PublishPro-AI Python AI Service"
     app_version: str = "0.1.0"
 
-    # Gemini API key for image generation
+    # Text (captions and hashtags) is written by Gemini. It does text only.
     gemini_api_key: SecretStr | None = None
+    # Model names are settings so they can change without a code edit. This one is
+    # not the newest on purpose: gemini-3.7-flash and 3.8-flash kept answering
+    # "high demand" (503) while testing, and 3.6 answered every time.
+    gemini_text_model: str = "gemini-3.6-flash"
 
-    # Groq API key for text generation
-    groq_api_key: SecretStr | None = None
-    # Groq speaks the OpenAI protocol, so we call it through the OpenAI SDK.
-    # Model and URL are settings so they can change without a code edit.
-    groq_model: str = "openai/gpt-oss-20b"
-    groq_base_url: str = "https://api.groq.com/openai/v1"
+    # Thumbnail pictures come from Magic Hour. It has its own key, so the text side
+    # and the image side never depend on each other.
+    magic_hour_api_key: SecretStr | None = None
+    # Model and resolution are settings so they can change without a code edit.
+    # The SDK lists the values it accepts; "640px" is the smallest, and the cheapest to test with.
+    magic_hour_image_model: str = "z-image-turbo"
+    magic_hour_image_resolution: str = "640px"
+    # The longest we wait for one picture. The SDK's own wait has no limit.
+    magic_hour_timeout_seconds: float = Field(default=120.0, gt=0)
+
+    # Where finished thumbnails are saved. The default sits inside this project
+    # whatever folder the service is started from.
+    thumbnail_output_dir: Path = Path(__file__).resolve().parents[2] / "generated" / "thumbnails"
+
+    # Backblaze B2, reached through its S3-compatible API. For now this is only the
+    # connection setup. All five are optional so the app starts without them; the B2
+    # client refuses to build until every one is set.
+    b2_key_id: SecretStr | None = None
+    b2_application_key: SecretStr | None = None
+    b2_bucket_name: str | None = None
+    # The S3 endpoint Backblaze shows for the bucket, such as https://s3.<region>.backblazeb2.com
+    b2_endpoint_url: str | None = None
+    b2_region: str | None = None
 
     # Shared secret that Spring Boot sends in X-Internal-Service-Token.
     # Optional here so the app can still start; the content endpoint answers

@@ -1,7 +1,8 @@
-"""Generates captions and hashtags with Groq.
+"""Generates captions and hashtags with Gemini.
 
-This file only talks to the provider. It knows nothing about HTTP routes, so
-Phase 3 can wrap it in an endpoint and the tests can run it with a fake client.
+This file only talks to the provider. It knows nothing about HTTP routes, so the
+route can wrap it and the tests can run it with a fake client. It also knows
+nothing about pictures: those are made by a different service and provider.
 """
 
 import json
@@ -11,16 +12,20 @@ import time
 import unicodedata
 from functools import lru_cache
 
-from openai import (
+from google import genai
+
+# The Interactions API raises these. The SDK does not export them anywhere public,
+# so we import them from where it defines them. That is why google-genai is pinned
+# to an exact version in requirements.txt.
+from google.genai._gaos.lib.compat_errors import (
     APIConnectionError,
     APIError,
     AuthenticationError,
+    BadRequestError,
     InternalServerError,
-    OpenAI,
     PermissionDeniedError,
     RateLimitError,
 )
-from openai.types.chat import ChatCompletion
 from pydantic import ValidationError
 
 from app.core.config import get_settings
@@ -33,6 +38,7 @@ from app.services.errors import (
     ProviderRequestError,
     ProviderUnavailableError,
 )
+from app.services.gemini_client import build_gemini_client
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +50,8 @@ CAPTION_MAX_CHARS = 220  # only a hint in the prompt; the schema is the hard cap
 REQUEST_TIMEOUT_SECONDS = 30.0
 MAX_ATTEMPTS = 3  # the first try plus two retries
 RETRY_DELAY_SECONDS = 1.0  # doubles after each failed attempt
-# gpt-oss "thinks" before it answers and those tokens count too, so leave room.
-MAX_COMPLETION_TOKENS = 2000
+# Thinking tokens count against this too, so leave room even on a low setting.
+MAX_OUTPUT_TOKENS = 2000
 
 # Only these are worth retrying: the next attempt may well work. Auth problems,
 # bad requests and rate limits will not fix themselves in a second.
@@ -71,28 +77,37 @@ specific ones, and use the keywords where they fit. Use the requested language \
 or common English tags, whichever people really search for.
 - Reply with JSON only."""
 
-# Asks Groq to force its answer into this shape. We still re-check everything
+# Asks Gemini to force its answer into this shape. We still re-check everything
 # below: the model's output is never trusted just because it parsed.
+# The exact counts are in the schema on purpose. With only the prompt to go on,
+# Gemini returned a single hashtag about half the time, and sometimes 4 captions.
 RESPONSE_FORMAT = {
-    "type": "json_schema",
-    "json_schema": {
-        "name": "captions_and_hashtags",
-        "strict": True,
-        "schema": {
-            "type": "object",
-            "properties": {
-                "captions": {"type": "array", "items": {"type": "string"}},
-                "hashtags": {"type": "array", "items": {"type": "string"}},
+    "type": "text",
+    "mime_type": "application/json",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "captions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": NUM_CAPTIONS,
+                "maxItems": NUM_CAPTIONS,
             },
-            "required": ["captions", "hashtags"],
-            "additionalProperties": False,
+            "hashtags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": NUM_HASHTAGS,
+                "maxItems": NUM_HASHTAGS,
+            },
         },
+        "required": ["captions", "hashtags"],
+        "additionalProperties": False,
     },
 }
 
 
 class ContentGenerationService:
-    def __init__(self, client: OpenAI, model: str):
+    def __init__(self, client: genai.Client, model: str):
         # The client is passed in (not built here) so tests can hand in a fake
         # and the app can reuse one client instead of making one per request.
         self._client = client
@@ -100,37 +115,38 @@ class ContentGenerationService:
 
     def generate(self, request: GenerationRequest) -> GenerationResponse:
         """Return captions and hashtags, or raise a ContentGenerationError."""
-        completion = self._call_provider(self._build_messages(request))
-        return _parse_completion(completion)
+        interaction = self._call_provider(request)
+        return _parse_interaction(interaction)
 
     def close(self) -> None:
         """Release the HTTP connections. Call once when the app shuts down."""
         self._client.close()
 
-    def _build_messages(self, request: GenerationRequest) -> list[dict]:
-        # The user's text goes in as JSON data, not glued into the instructions,
-        # so a topic like "ignore the rules above" stays plain data.
-        return [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": request.model_dump_json()},
-        ]
-
-    def _call_provider(self, messages: list[dict]) -> ChatCompletion:
+    def _call_provider(self, request: GenerationRequest):
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
-                return self._client.chat.completions.create(
+                return self._client.interactions.create(
                     model=self._model,
-                    messages=messages,
+                    # The rules go in as the system instruction. The user's text goes
+                    # in as JSON data, not glued into the rules, so a topic like
+                    # "ignore the rules above" stays plain data.
+                    system_instruction=SYSTEM_PROMPT,
+                    input=request.model_dump_json(),
                     response_format=RESPONSE_FORMAT,
-                    temperature=0.8,  # some creativity, or all captions sound alike
-                    reasoning_effort="low",  # captions are easy; skip the long thinking
-                    max_completion_tokens=MAX_COMPLETION_TOKENS,
+                    generation_config={
+                        "temperature": 0.8,  # some creativity, or all captions sound alike
+                        "thinking_level": "low",  # captions are easy; skip the long thinking
+                        "max_output_tokens": MAX_OUTPUT_TOKENS,
+                    },
+                    # Nothing here needs to be kept at Google afterwards.
+                    store=False,
+                    timeout=REQUEST_TIMEOUT_SECONDS,
                 )
             except TRANSIENT_ERRORS as exc:
                 if attempt == MAX_ATTEMPTS:
                     raise _to_service_error(exc) from exc
                 logger.warning(
-                    "Groq call failed (%s), retrying (attempt %d of %d)",
+                    "Gemini call failed (%s), retrying (attempt %d of %d)",
                     type(exc).__name__,
                     attempt,
                     MAX_ATTEMPTS,
@@ -145,20 +161,15 @@ class ContentGenerationService:
 def _build_service() -> ContentGenerationService:
     """Build the service from the settings. Called through the lock below."""
     settings = get_settings()
-    key = settings.groq_api_key
+    key = settings.gemini_api_key
     if key is None or not key.get_secret_value().strip():
-        logger.error("GROQ_API_KEY is not set")
+        logger.error("GEMINI_API_KEY is not set")
         raise ProviderAuthError()
 
-    client = OpenAI(
-        api_key=key.get_secret_value(),
-        base_url=settings.groq_base_url,
-        timeout=REQUEST_TIMEOUT_SECONDS,
-        # The SDK retries 429s on its own, which would also hammer an exhausted
-        # quota. We turn that off and do our own small retry for transient errors.
-        max_retries=0,
+    return ContentGenerationService(
+        build_gemini_client(key.get_secret_value()),
+        settings.gemini_text_model,
     )
-    return ContentGenerationService(client, settings.groq_model)
 
 
 _build_lock = threading.Lock()
@@ -184,12 +195,15 @@ def _to_service_error(exc: APIError) -> ContentGenerationError:
     # str(exc) holds the provider's message but never our headers or key. It
     # goes to the log only; the error we return carries fixed, safe text.
     logger.warning(
-        "Groq call failed: %s (status=%s): %s",
+        "Gemini call failed: %s (status=%s): %s",
         type(exc).__name__,
         getattr(exc, "status_code", None),
         exc,
     )
     if isinstance(exc, (AuthenticationError, PermissionDeniedError)):
+        return ProviderAuthError()
+    # Google answers a wrong key with a 400, not a 401, so look for its reason code.
+    if isinstance(exc, BadRequestError) and "API_KEY_INVALID" in str(exc):
         return ProviderAuthError()
     if isinstance(exc, RateLimitError):
         return ProviderRateLimitError()
@@ -203,17 +217,16 @@ def _invalid_output(reason: str) -> InvalidModelOutputError:
     return InvalidModelOutputError()
 
 
-def _parse_completion(completion: ChatCompletion) -> GenerationResponse:
+def _parse_interaction(interaction) -> GenerationResponse:
     """Check the model's reply and turn it into a GenerationResponse, or raise."""
-    if not completion.choices:
-        raise _invalid_output("the reply had no choices")
-    choice = completion.choices[0]
-
-    # A cut-off reply can still look like JSON, so refuse it outright.
-    if choice.finish_reason == "length":
+    # A cut-off reply can still look like JSON, so refuse it outright. Gemini
+    # marks one that hit the token limit as "incomplete".
+    if interaction.status == "incomplete":
         raise _invalid_output("the reply was cut off at the token limit")
+    if interaction.status != "completed":
+        raise _invalid_output(f"the reply did not finish (status {interaction.status!r})")
 
-    content = choice.message.content
+    content = interaction.output_text
     if not content or not content.strip():
         raise _invalid_output("the reply was empty")
 
