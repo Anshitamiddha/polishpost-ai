@@ -1,4 +1,4 @@
-"""Tests for POST /api/v1/content/generate. Groq is never called."""
+"""Tests for POST /api/v1/content/generate. Gemini is never called."""
 
 import json
 import logging
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import httpx2
 import pytest
 from fastapi.testclient import TestClient
-from openai import AuthenticationError, RateLimitError
+from google.genai._gaos.lib.compat_errors import AuthenticationError, RateLimitError
 from pydantic import SecretStr
 
 from app.api.routes import content as content_module
@@ -31,7 +31,7 @@ from app.services.errors import (
 )
 
 URL = "/api/v1/content/generate"
-SECRET = "gsk_SUPER_SECRET_key_123"
+SECRET = "AIza_SUPER_SECRET_key_123"
 
 # These tests are about content generation, so they start out logged in. The
 # login rules themselves are tested in test_internal_auth.py.
@@ -72,19 +72,18 @@ def service() -> MagicMock:
     return fake
 
 
-def use_real_service_with_fake_groq(groq_client: MagicMock) -> None:
-    """Run the real Phase 2 service, with only the Groq client faked."""
-    real = ContentGenerationService(groq_client, "openai/gpt-oss-20b")
+def use_real_service_with_fake_gemini(gemini_client: MagicMock) -> None:
+    """Run the real text service, with only the Gemini client faked."""
+    real = ContentGenerationService(gemini_client, "gemini-test-model")
     app.dependency_overrides[get_generation_service] = lambda: real
 
 
-def groq_reply(data: dict) -> SimpleNamespace:
-    message = SimpleNamespace(content=json.dumps(data))
-    return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")])
+def gemini_reply(data: dict) -> SimpleNamespace:
+    return SimpleNamespace(output_text=json.dumps(data), status="completed")
 
 
 def provider_error(error_class, status: int, message: str):
-    request = httpx2.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    request = httpx2.Request("POST", "https://generativelanguage.googleapis.com/v1beta/interactions")
     return error_class(message, response=httpx2.Response(status, request=request), body=None)
 
 
@@ -131,11 +130,11 @@ def test_the_service_gets_the_phase_1_defaults_when_only_a_topic_is_sent(client,
 
 
 def test_real_service_output_comes_through_the_endpoint_cleaned_up(client):
-    groq = MagicMock()
-    groq.chat.completions.create.return_value = groq_reply(
+    gemini = MagicMock()
+    gemini.interactions.create.return_value = gemini_reply(
         {"captions": ["One good caption"], "hashtags": ["travel", "#Travel", "#fun"]}
     )
-    use_real_service_with_fake_groq(groq)
+    use_real_service_with_fake_gemini(gemini)
 
     response = client.post(URL, json={"video_topic": "A trip"})
 
@@ -254,33 +253,35 @@ def test_a_failure_is_never_a_success_response(client, service):
 
 def test_provider_detail_stays_out_of_the_response(client, service):
     error = ProviderAuthError()
-    error.__cause__ = RuntimeError(f"401 from Groq for key {SECRET}")
+    error.__cause__ = RuntimeError(f"401 from Gemini for key {SECRET}")
     service.generate.side_effect = error
 
     response = client.post(URL, json={"video_topic": "Sunrise hike"})
 
     assert response.status_code == 503
     assert SECRET not in response.text
+    # No provider is named in what the caller sees.
+    assert "Gemini" not in response.text
     assert "Groq" not in response.text
 
 
 def test_real_service_rate_limit_becomes_a_429_without_retrying(client):
-    groq = MagicMock()
-    groq.chat.completions.create.side_effect = provider_error(RateLimitError, 429, "slow down")
-    use_real_service_with_fake_groq(groq)
+    gemini = MagicMock()
+    gemini.interactions.create.side_effect = provider_error(RateLimitError, 429, "slow down")
+    use_real_service_with_fake_gemini(gemini)
 
     response = client.post(URL, json={"video_topic": "Sunrise hike"})
 
     assert response.status_code == 429
-    assert groq.chat.completions.create.call_count == 1
+    assert gemini.interactions.create.call_count == 1
 
 
 def test_real_service_rejected_key_becomes_a_503_and_the_key_is_not_leaked(client):
-    groq = MagicMock()
-    groq.chat.completions.create.side_effect = provider_error(
+    gemini = MagicMock()
+    gemini.interactions.create.side_effect = provider_error(
         AuthenticationError, 401, f"Invalid API key {SECRET}"
     )
-    use_real_service_with_fake_groq(groq)
+    use_real_service_with_fake_gemini(gemini)
 
     response = client.post(URL, json={"video_topic": "Sunrise hike"})
 
@@ -289,9 +290,9 @@ def test_real_service_rejected_key_becomes_a_503_and_the_key_is_not_leaked(clien
 
 
 def test_real_service_unusable_model_output_becomes_a_502(client):
-    groq = MagicMock()
-    groq.chat.completions.create.return_value = groq_reply({"captions": [], "hashtags": ["#a"]})
-    use_real_service_with_fake_groq(groq)
+    gemini = MagicMock()
+    gemini.interactions.create.return_value = gemini_reply({"captions": [], "hashtags": ["#a"]})
+    use_real_service_with_fake_gemini(gemini)
 
     response = client.post(URL, json={"video_topic": "Sunrise hike"})
 
@@ -306,7 +307,7 @@ def test_missing_api_key_is_a_503(client, monkeypatch):
     # No dependency override here: this goes through the real service factory.
     # _env_file=None keeps the developer's real .env out of the test.
     monkeypatch.setattr(
-        service_module, "get_settings", lambda: Settings(_env_file=None, groq_api_key=None)
+        service_module, "get_settings", lambda: Settings(_env_file=None, gemini_api_key=None)
     )
 
     response = client.post(URL, json={"video_topic": "Sunrise hike"})
@@ -319,7 +320,7 @@ def test_blank_api_key_is_a_503(client, monkeypatch):
     monkeypatch.setattr(
         service_module,
         "get_settings",
-        lambda: Settings(_env_file=None, groq_api_key=SecretStr("   ")),
+        lambda: Settings(_env_file=None, gemini_api_key=SecretStr("   ")),
     )
 
     assert client.post(URL, json={"video_topic": "Sunrise hike"}).status_code == 503

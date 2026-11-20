@@ -9,6 +9,9 @@ dist/
 .venv/
 venv/
 
+# Generated thumbnails (made at run time, not source code)
+generated/
+
 # Test and tooling output
 .pytest_cache/
 .coverage

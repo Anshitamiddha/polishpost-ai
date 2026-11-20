@@ -1,1 +1,1 @@
-"""PublishPro-AI Python AI service."""
+"""PublishPro-AI service package."""

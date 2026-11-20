@@ -1,4 +1,4 @@
-"""Tests for the X-Internal-Service-Token check. Groq is never called."""
+"""Tests for the X-Internal-Service-Token check. Gemini is never called."""
 
 import logging
 from unittest.mock import MagicMock
@@ -143,7 +143,7 @@ def test_unauthorized_caller_gets_401_even_when_the_provider_key_is_missing(clie
     # Otherwise the 503 "provider not configured" answer would tell a stranger
     # something about our setup.
     monkeypatch.setattr(
-        service_module, "get_settings", lambda: Settings(_env_file=None, groq_api_key=None)
+        service_module, "get_settings", lambda: Settings(_env_file=None, gemini_api_key=None)
     )
 
     assert client.post(URL, json=BODY).status_code == 401
@@ -223,7 +223,7 @@ def test_provider_errors_are_still_mapped_with_a_valid_token(client, service):
 
 def test_missing_provider_key_is_still_a_503_with_a_valid_token(client, monkeypatch):
     monkeypatch.setattr(
-        service_module, "get_settings", lambda: Settings(_env_file=None, groq_api_key=None)
+        service_module, "get_settings", lambda: Settings(_env_file=None, gemini_api_key=None)
     )
 
     response = client.post(URL, json=BODY, headers={HEADER: SECRET})
