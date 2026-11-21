@@ -40,8 +40,16 @@ ThumbnailServiceDep = Annotated[ThumbnailGenerationService, Depends(get_thumbnai
         401: {"model": ErrorResponse, "description": "Missing or wrong internal service token"},
         429: {"model": ErrorResponse, "description": "Magic Hour's limit was reached"},
         500: {"model": ErrorResponse, "description": "Unexpected server error"},
-        502: {"model": ErrorResponse, "description": "Magic Hour gave no usable picture"},
-        503: {"model": ErrorResponse, "description": "Magic Hour unavailable, too slow or not configured"},
+        502: {
+            "model": ErrorResponse,
+            "description": "Magic Hour gave no usable picture, or B2 refused the upload "
+            "(then the picture was made and kept on the server)",
+        },
+        503: {
+            "model": ErrorResponse,
+            "description": "Magic Hour or B2 unavailable, too slow or not configured. If the text says the "
+            "thumbnail was generated, only storing it failed and the picture was kept on the server",
+        },
     },
 )
 def generate_thumbnail(

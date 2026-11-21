@@ -76,6 +76,10 @@ def build_b2_client(settings: Settings):
                 read_timeout=READ_TIMEOUT_SECONDS,
                 # One retry for a passing network hiccup, not a pile of repeat calls.
                 retries={"max_attempts": 1, "mode": "standard"},
+                # boto3's newer default adds a trailing checksum (aws-chunked) to uploads,
+                # which Backblaze's S3 API has rejected. Only add checksums when S3 requires them.
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
             ),
         )
     except InvalidRegionError as exc:

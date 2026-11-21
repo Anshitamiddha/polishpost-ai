@@ -1,8 +1,9 @@
-"""Makes a thumbnail picture with Magic Hour and saves it on disk.
+"""Makes a thumbnail picture with Magic Hour, saves it on disk and stores it in B2.
 
-The service knows nothing about HTTP routes. It starts the job at Magic Hour, waits
-for it (with a time limit), downloads the picture, checks that it really is an
-image, and keeps it under a new name.
+The service knows nothing about HTTP routes. It checks that storage works, starts
+the job at Magic Hour, waits for it (with a time limit), downloads the picture,
+checks that it really is an image, keeps it under a new name, and uploads it to
+the private B2 bucket. The local copy always stays.
 
 Why not the SDK's one-call `generate(wait_for_completion=True)`? Its wait loop
 has no time limit, so a job stuck in the queue would hold a worker thread
@@ -10,11 +11,14 @@ forever. Here the steps are the SDK's own, called one by one: `create` starts th
 job, `image_projects.get` checks it, and `download_files_sync` fetches the file.
 """
 
+import json
 import logging
 import shutil
 import threading
 import time
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -27,8 +31,10 @@ from PIL import Image
 
 from app.core.config import get_settings
 from app.schemas.thumbnail import ThumbnailImage, ThumbnailRequest, ThumbnailResponse
+from app.services.b2_storage_service import B2StorageService, StoredObject, build_object_key, get_b2_storage_service
 from app.services.errors import (
     ContentGenerationError,
+    ImageGeneratedButNotStoredError,
     ImageNotCreatedError,
     ImageNotSavedError,
     InvalidModelOutputError,
@@ -37,6 +43,7 @@ from app.services.errors import (
     ProviderRequestError,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    StorageError,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +65,21 @@ FILE_ENDINGS = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}
 # not unusual but valid ones.
 MIN_SIDE_PIXELS = 100
 MAX_FILE_BYTES = 50 * 1024 * 1024
+
+# Written next to a picture whose upload failed, so it can be uploaded later
+# without paying for it again. A retry job can find these by the ending.
+PENDING_UPLOAD_ENDING = ".pending-upload.json"
+
+
+@dataclass(frozen=True)
+class _SavedImage:
+    """A checked picture that now sits in the output folder."""
+
+    path: Path
+    width: int
+    height: int
+    format: str  # png, jpeg or webp
+    extension: str  # png, jpg or webp
 
 
 def build_prompt(request: ThumbnailRequest) -> str:
@@ -150,10 +172,13 @@ class ThumbnailGenerationService:
         output_dir: Path,
         timeout_seconds: float,
         poll_interval_seconds: float = POLL_INTERVAL_SECONDS,
+        *,
+        storage: B2StorageService,
     ):
-        # The client is passed in (not built here) so tests can point it at a
-        # fake server, and the app reuses one client instead of making one per request.
+        # The clients are passed in (not built here) so tests can point them at
+        # fakes, and the app reuses one client instead of making one per request.
         self._client = client
+        self._storage = storage
         self._model = model
         self._resolution = resolution
         self._output_dir = output_dir
@@ -161,11 +186,14 @@ class ThumbnailGenerationService:
         self._poll_interval_seconds = poll_interval_seconds
 
     def generate(self, request: ThumbnailRequest) -> ThumbnailResponse:
-        """Make one thumbnail, or raise a ContentGenerationError."""
+        """Make one thumbnail, or raise a ContentGenerationError or a StorageError."""
         # Our own name for the picture, so a new one can never replace an old one.
         image_id = uuid.uuid4().hex
 
-        # Before paying for a picture, make sure there is somewhere to put it.
+        # Before paying for a picture, make sure there is somewhere to put it: B2
+        # must answer, and the local folder must be writable. Storage is checked
+        # first so a storage problem never leaves a folder behind.
+        self._storage.check_ready()
         work_dir = self._prepare_work_dir(image_id)
         try:
             job_id = self._start_job(request, image_id)
@@ -178,16 +206,68 @@ class ThumbnailGenerationService:
                 )
                 raise ImageNotCreatedError()
 
-            image = self._download_and_save(project.downloads, image_id, work_dir)
+            saved = self._download_and_save(project.downloads, image_id, work_dir)
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
 
+        stored = self._store(request, image_id, saved, project)
         return ThumbnailResponse(
             status=project.status,
-            image=image,
+            image=ThumbnailImage(
+                reference=saved.path.name,
+                width=saved.width,
+                height=saved.height,
+                format=saved.format,
+                asset_id=image_id,
+                object_key=stored.object_key,
+                content_type=stored.content_type,
+                size_bytes=stored.size_bytes,
+            ),
             provider_generation_id=project.id,
             credits_charged=project.credits_charged,
         )
+
+    def _store(self, request: ThumbnailRequest, image_id: str, saved: _SavedImage, project) -> StoredObject:
+        """Upload the checked picture. If that fails, keep it and say how to retry."""
+        try:
+            return self._storage.upload_image(saved.path, request.workspace_id, image_id, saved.extension)
+        except Exception as exc:
+            # The picture is paid for and valid, so it stays on disk.
+            self._remember_failed_upload(request.workspace_id, image_id, saved, project, exc)
+            if isinstance(exc, StorageError):
+                raise ImageGeneratedButNotStoredError() from exc
+            raise
+
+    def _remember_failed_upload(self, workspace_id: int, image_id: str, saved: _SavedImage, project, exc) -> None:
+        """Log the facts and write a small note next to the picture. Holds no secrets."""
+        try:
+            object_key = build_object_key(workspace_id, image_id, saved.extension)
+        except ValueError:
+            object_key = None
+        note = {
+            "asset_id": image_id,
+            "workspace_id": workspace_id,
+            "object_key": object_key,
+            "local_file": saved.path.name,
+            "width": saved.width,
+            "height": saved.height,
+            "format": saved.format,
+            "provider_generation_id": project.id,
+            "credits_charged": project.credits_charged,
+            "failure": type(exc).__name__,
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        # In the log too, in case the note cannot be written.
+        logger.error("Thumbnail generated but not stored, kept locally for a retry: %s", json.dumps(note))
+
+        note_path = self._output_dir / f"{image_id}{PENDING_UPLOAD_ENDING}"
+        temporary = note_path.with_name(note_path.name + ".tmp")
+        try:
+            temporary.write_text(json.dumps(note, indent=2), encoding="utf-8")
+            temporary.replace(note_path)  # the whole note or nothing, never half of it
+        except OSError as write_error:
+            logger.error("Could not write the retry note for %s: %s", image_id, write_error)
+            temporary.unlink(missing_ok=True)
 
     def _start_job(self, request: ThumbnailRequest, image_id: str) -> str:
         try:
@@ -243,7 +323,7 @@ class ThumbnailGenerationService:
             raise ImageNotSavedError() from exc
         return work_dir
 
-    def _download_and_save(self, downloads, image_id: str, work_dir: Path) -> ThumbnailImage:
+    def _download_and_save(self, downloads, image_id: str, work_dir: Path) -> _SavedImage:
         try:
             downloaded = download_files_sync(downloads=downloads, download_directory=str(work_dir))
         except httpx.HTTPError as exc:
@@ -256,14 +336,15 @@ class ThumbnailGenerationService:
             raise InvalidModelOutputError()
 
         width, height, image_format = _read_image(Path(downloaded[0]))
-        final_name = f"{image_id}.{FILE_ENDINGS[image_format]}"
+        extension = FILE_ENDINGS[image_format]
+        final_path = self._output_dir / f"{image_id}.{extension}"
         try:
-            Path(downloaded[0]).replace(self._output_dir / final_name)
+            Path(downloaded[0]).replace(final_path)
         except OSError as exc:
             logger.error("Could not move the picture into %s: %s", self._output_dir, exc)
             raise ImageNotSavedError() from exc
 
-        return ThumbnailImage(reference=final_name, width=width, height=height, format=image_format.lower())
+        return _SavedImage(final_path, width, height, image_format.lower(), extension)
 
 
 @lru_cache
@@ -274,6 +355,9 @@ def _build_service() -> ThumbnailGenerationService:
         logger.error("MAGIC_HOUR_API_KEY is not set")
         raise ProviderAuthError()
 
+    # Storage is required too. If it is not set up this fails with a 503 before anything is paid for.
+    storage = get_b2_storage_service()
+
     client = Client(token=key.get_secret_value().strip(), timeout=HTTP_TIMEOUT_SECONDS)
     return ThumbnailGenerationService(
         client,
@@ -281,6 +365,7 @@ def _build_service() -> ThumbnailGenerationService:
         resolution=settings.magic_hour_image_resolution,
         output_dir=settings.thumbnail_output_dir,
         timeout_seconds=settings.magic_hour_timeout_seconds,
+        storage=storage,
     )
 
 

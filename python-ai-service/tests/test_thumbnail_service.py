@@ -12,6 +12,7 @@ from pydantic import SecretStr, ValidationError
 
 from app.core.config import Settings
 from app.schemas.thumbnail import ThumbnailRequest
+from app.services.b2_storage_service import B2StorageService
 from app.services import thumbnail_generation_service as service_module
 from app.services.errors import (
     ImageNotCreatedError,
@@ -28,12 +29,14 @@ from app.services.thumbnail_generation_service import (
     build_prompt,
     get_thumbnail_generation_service,
 )
+from b2_fake import BUCKET, FakeB2Client
 from magic_hour_fake import FakeMagicHour, image_bytes
 
 # Fake values made for these tests only. Nothing here is a real secret.
 KEY = "mh-SUPER-SECRET-key-123"
 MODEL = "z-image-turbo"
 REQUEST = ThumbnailRequest(
+    workspace_id=12,
     video_topic="Sunrise hike in the Alps",
     heading="ALPS AT DAWN",
     subtitle="You will not believe this view",
@@ -54,7 +57,12 @@ def output_dir(tmp_path):
 
 
 @pytest.fixture
-def make_service(fake, output_dir):
+def b2():
+    return FakeB2Client()
+
+
+@pytest.fixture
+def make_service(fake, output_dir, b2):
     def build(*, timeout_seconds=5.0, http_timeout=5.0):
         client = Client(token=KEY, base_url=fake.url, timeout=http_timeout)
         return ThumbnailGenerationService(
@@ -64,6 +72,7 @@ def make_service(fake, output_dir):
             output_dir=output_dir,
             timeout_seconds=timeout_seconds,
             poll_interval_seconds=0.01,
+            storage=B2StorageService(b2, BUCKET),
         )
 
     return build
@@ -111,7 +120,7 @@ def test_the_request_to_magic_hour_has_the_documented_shape(fake, make_service):
 
 
 def test_the_prompt_has_no_subtitle_line_when_none_is_given():
-    without = ThumbnailRequest(video_topic="Sunrise hike", heading="ALPS", visual_style="cinematic")
+    without = ThumbnailRequest(workspace_id=12, video_topic="Sunrise hike", heading="ALPS", visual_style="cinematic")
 
     assert "subtitle" not in build_prompt(without)
     assert "subtitle" in build_prompt(REQUEST)
@@ -246,9 +255,11 @@ def test_a_slow_call_to_magic_hour_becomes_a_timeout_and_is_not_retried(fake, ma
     assert len(fake.creates()) == 1
 
 
-def test_an_unreachable_magic_hour_is_a_temporary_outage(output_dir):
+def test_an_unreachable_magic_hour_is_a_temporary_outage(output_dir, b2):
     client = Client(token=KEY, base_url="http://127.0.0.1:9", timeout=1)  # nothing listens on port 9
-    service = ThumbnailGenerationService(client, MODEL, "640px", output_dir, 1.0, 0.01)
+    service = ThumbnailGenerationService(
+        client, MODEL, "640px", output_dir, 1.0, 0.01, storage=B2StorageService(b2, BUCKET)
+    )
 
     with pytest.raises(ProviderUnavailableError):
         service.generate(REQUEST)
@@ -355,11 +366,13 @@ def test_a_file_over_the_size_limit_is_refused(fake, make_service, output_dir, m
 # --- this server's own disk ---------------------------------------------------
 
 
-def test_an_output_folder_that_cannot_be_made_fails_before_any_paid_job(fake, tmp_path):
+def test_an_output_folder_that_cannot_be_made_fails_before_any_paid_job(fake, b2, tmp_path):
     blocker = tmp_path / "blocker"
     blocker.write_text("a file sits where the folder should go")
     client = Client(token=KEY, base_url=fake.url, timeout=5)
-    service = ThumbnailGenerationService(client, MODEL, "640px", blocker / "thumbnails", 5.0, 0.01)
+    service = ThumbnailGenerationService(
+        client, MODEL, "640px", blocker / "thumbnails", 5.0, 0.01, storage=B2StorageService(b2, BUCKET)
+    )
 
     with pytest.raises(ImageNotSavedError):
         service.generate(REQUEST)
@@ -425,7 +438,9 @@ def test_a_missing_key_is_refused_before_any_work(use_settings, key):
         get_thumbnail_generation_service()
 
 
-def test_the_shared_service_is_built_once_from_the_settings(use_settings, tmp_path):
+def test_the_shared_service_is_built_once_from_the_settings(use_settings, tmp_path, monkeypatch):
+    storage = object()
+    monkeypatch.setattr(service_module, "get_b2_storage_service", lambda: storage)
     use_settings(
         magic_hour_api_key=SecretStr(KEY),
         magic_hour_image_model="flux-schnell",
@@ -439,6 +454,7 @@ def test_the_shared_service_is_built_once_from_the_settings(use_settings, tmp_pa
     assert service._model == "flux-schnell"
     assert service._resolution == "1k"
     assert service._output_dir == tmp_path / "somewhere"
+    assert service._storage is storage
 
 
 def test_settings_have_the_supplied_defaults_and_read_the_environment(monkeypatch):

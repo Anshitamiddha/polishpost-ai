@@ -24,6 +24,7 @@ HEADER = "X-Internal-Service-Token"
 # Fake values made for these tests only. Nothing here is a real secret.
 SECRET = "unit-test-shared-secret"
 BODY = {
+    "workspace_id": 12,
     "video_topic": "Sunrise hike in the Alps",
     "heading": "ALPS AT DAWN",
     "visual_style": "cinematic, golden light",
@@ -31,7 +32,16 @@ BODY = {
 
 GOOD_RESULT = ThumbnailResponse(
     status="complete",
-    image=ThumbnailImage(reference="abc123.png", width=640, height=360, format="png"),
+    image=ThumbnailImage(
+        reference="abc123.png",
+        width=640,
+        height=360,
+        format="png",
+        asset_id="abc123",
+        object_key="workspaces/12/generated/abc123.png",
+        content_type="image/png",
+        size_bytes=1234,
+    ),
     provider_generation_id="job-1",
     credits_charged=5,
 )
