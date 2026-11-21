@@ -254,11 +254,9 @@ def test_a_wrong_region_fails_the_command_before_any_network_call(monkeypatch, c
 
 
 def test_the_app_exposes_no_storage_route():
-    # Importing the real app also loads the Gemini text code. If that cannot load
-    # in this environment, the check is skipped rather than failing.
-    main = pytest.importorskip("app.main")
+    from app.main import app
 
-    paths = " ".join(main.app.openapi()["paths"]).lower()
+    paths = " ".join(app.openapi()["paths"]).lower()
 
     for word in ("b2", "storage", "bucket", "upload", "download", "presign"):
         assert word not in paths

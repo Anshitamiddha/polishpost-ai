@@ -2,8 +2,7 @@
 
 The service knows nothing about HTTP routes. It starts the job at Magic Hour, waits
 for it (with a time limit), downloads the picture, checks that it really is an
-image, and keeps it under a new name. Captions are a separate service (Gemini)
-and are never touched here.
+image, and keeps it under a new name.
 
 Why not the SDK's one-call `generate(wait_for_completion=True)`? Its wait loop
 has no time limit, so a job stuck in the queue would hold a worker thread

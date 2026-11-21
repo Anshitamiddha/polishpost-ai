@@ -1,4 +1,4 @@
-"""Tests for the X-Internal-Service-Token check. Gemini is never called."""
+"""Tests for the X-Internal-Service-Token check. Magic Hour is never called."""
 
 import logging
 from unittest.mock import MagicMock
@@ -7,25 +7,34 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from app.api.routes.content import get_generation_service
+from app.api.routes.thumbnails import get_thumbnail_service
 from app.core.config import Settings, get_settings
 from app.main import app
-from app.schemas.generation import GenerationResponse
-from app.services import content_generation_service as service_module
-from app.services.content_generation_service import (
-    ContentGenerationService,
-    get_content_generation_service,
-)
+from app.schemas.thumbnail import ThumbnailImage, ThumbnailResponse
+from app.services import thumbnail_generation_service as service_module
 from app.services.errors import ProviderRateLimitError
+from app.services.thumbnail_generation_service import (
+    ThumbnailGenerationService,
+    get_thumbnail_generation_service,
+)
 
-URL = "/api/v1/content/generate"
+URL = "/api/v1/publish/thumbnails"
 HEALTH_URL = "/api/v1/health"
 HEADER = "X-Internal-Service-Token"
 # Fake values made for these tests only. Nothing here is a real secret.
 SECRET = "unit-test-shared-secret"
-BODY = {"video_topic": "Sunrise hike in the Alps"}
+BODY = {
+    "video_topic": "Sunrise hike in the Alps",
+    "heading": "ALPS AT DAWN",
+    "visual_style": "cinematic, golden light",
+}
 
-GOOD_RESULT = GenerationResponse(captions=["Boots on, phone off."], hashtags=["#hiking"])
+GOOD_RESULT = ThumbnailResponse(
+    status="complete",
+    image=ThumbnailImage(reference="abc123.png", width=640, height=360, format="png"),
+    provider_generation_id="job-1",
+    credits_charged=5,
+)
 
 
 # --- helpers ----------------------------------------------------------------
@@ -43,11 +52,11 @@ def configure_secret(value: str | None) -> None:
 
 @pytest.fixture(autouse=True)
 def clean_state():
-    get_content_generation_service.cache_clear()
+    get_thumbnail_generation_service.cache_clear()
     configure_secret(SECRET)
     yield
     app.dependency_overrides.clear()
-    get_content_generation_service.cache_clear()
+    get_thumbnail_generation_service.cache_clear()
 
 
 @pytest.fixture
@@ -58,9 +67,9 @@ def client() -> TestClient:
 
 @pytest.fixture
 def service() -> MagicMock:
-    fake = MagicMock(spec=ContentGenerationService)
+    fake = MagicMock(spec=ThumbnailGenerationService)
     fake.generate.return_value = GOOD_RESULT
-    app.dependency_overrides[get_generation_service] = lambda: fake
+    app.dependency_overrides[get_thumbnail_service] = lambda: fake
     return fake
 
 
@@ -71,7 +80,7 @@ def test_correct_token_lets_the_request_through(client, service):
     response = client.post(URL, json=BODY, headers={HEADER: SECRET})
 
     assert response.status_code == 200
-    assert response.json() == {"captions": GOOD_RESULT.captions, "hashtags": GOOD_RESULT.hashtags}
+    assert response.json() == GOOD_RESULT.model_dump()
     service.generate.assert_called_once()
 
 
@@ -143,7 +152,7 @@ def test_unauthorized_caller_gets_401_even_when_the_provider_key_is_missing(clie
     # Otherwise the 503 "provider not configured" answer would tell a stranger
     # something about our setup.
     monkeypatch.setattr(
-        service_module, "get_settings", lambda: Settings(_env_file=None, gemini_api_key=None)
+        service_module, "get_settings", lambda: Settings(_env_file=None, magic_hour_api_key=None)
     )
 
     assert client.post(URL, json=BODY).status_code == 401
@@ -202,7 +211,7 @@ def test_health_works_even_when_no_secret_is_configured(client):
     assert client.get(HEALTH_URL).status_code == 200
 
 
-# --- the content endpoint behaves as before once logged in ------------------
+# --- the thumbnail endpoint behaves as before once logged in ----------------
 
 
 def test_bad_input_is_still_a_422_with_a_valid_token(client, service):
@@ -223,7 +232,7 @@ def test_provider_errors_are_still_mapped_with_a_valid_token(client, service):
 
 def test_missing_provider_key_is_still_a_503_with_a_valid_token(client, monkeypatch):
     monkeypatch.setattr(
-        service_module, "get_settings", lambda: Settings(_env_file=None, gemini_api_key=None)
+        service_module, "get_settings", lambda: Settings(_env_file=None, magic_hour_api_key=None)
     )
 
     response = client.post(URL, json=BODY, headers={HEADER: SECRET})
@@ -279,7 +288,7 @@ def test_settings_hide_the_secret_when_printed():
 # --- docs -------------------------------------------------------------------
 
 
-def test_openapi_lists_the_401_for_the_content_endpoint(client):
+def test_openapi_lists_the_401_for_the_thumbnail_endpoint(client):
     spec = client.get("/openapi.json").json()
 
     assert "401" in spec["paths"][URL]["post"]["responses"]

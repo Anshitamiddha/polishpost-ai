@@ -313,8 +313,6 @@ def test_a_job_that_fails_at_magic_hour_is_a_502(client, fake, real_service):
 
 
 def test_the_real_app_serves_the_thumbnail_route():
-    # Importing the real app also loads the Gemini text code. If that cannot load
-    # in this environment, the check is skipped rather than failing.
-    main = pytest.importorskip("app.main")
+    from app.main import app
 
-    assert "post" in main.app.openapi()["paths"][URL]
+    assert "post" in app.openapi()["paths"][URL]
