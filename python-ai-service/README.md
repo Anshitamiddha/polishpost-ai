@@ -1,10 +1,10 @@
 # PublishPro-AI service
 
-A small FastAPI service. It writes captions, hashtags and SEO keywords with Gemini, and makes thumbnail pictures with Magic Hour. Only the Spring Boot backend should call it.
+A small FastAPI service that makes thumbnail pictures with Magic Hour. Only the Spring Boot backend should call it.
 
 ## Run
 
-1. Copy `.env.example` to `.env` and add `AI_SERVICE_SHARED_SECRET`, `GEMINI_API_KEY` and `MAGIC_HOUR_API_KEY`.
+1. Copy `.env.example` to `.env` and add `AI_SERVICE_SHARED_SECRET` and `MAGIC_HOUR_API_KEY`.
 2. Install dependencies: `pip install -r requirements.txt`.
 3. Start it from the `python-ai-service` folder, because `.env` is read from the folder you start in: `uvicorn app.main:app --reload`.
 
@@ -12,8 +12,7 @@ Every generation endpoint needs the `X-Internal-Service-Token` header. Provider 
 
 ## Endpoints
 
-- `POST /api/v1/publish/text` writes captions, hashtags and primary/secondary SEO keywords with Gemini.
-- `POST /api/v1/content/generate` is the older caption endpoint. It stays for backwards compatibility.
+- `GET /api/v1/health` says the service is running. It needs no token.
 - `POST /api/v1/publish/thumbnails` makes one 16:9 thumbnail with Magic Hour.
 
 ## Thumbnails
@@ -37,21 +36,3 @@ python -m app.services.b2_connection_check
 ```
 
 It makes one `HeadBucket` call, which only asks whether the bucket is reachable with these credentials. It prints PASS or FAIL, never prints the keys, and uploads and changes nothing.
-
-## Content intelligence (in progress)
-
-`app/ml/content_intelligence/` is a workspace for learning from a YouTube metadata dataset. So far it holds one script that reads a CSV file and reports what is in it. Nothing here is used by the API yet.
-
-Put the downloaded CSV files in `app/ml/content_intelligence/datasets/raw/`. A zip must be extracted first. Then run this from the `python-ai-service` folder:
-
-```
-python app/ml/content_intelligence/preprocessing/inspect_dataset.py
-```
-
-With no path it uses the only CSV in `raw/`. If `raw/` holds several CSV files, name the one you want:
-
-```
-python app/ml/content_intelligence/preprocessing/inspect_dataset.py app/ml/content_intelligence/datasets/raw/CAvideos.csv
-```
-
-The report covers size, columns and types, the first five records, missing values, duplicate rows and categories. It also checks for descriptions, real tags, hashtags and view, like and comment counts. It only reads the file and changes nothing. It needs `pandas`, which is not in `requirements.txt` yet.

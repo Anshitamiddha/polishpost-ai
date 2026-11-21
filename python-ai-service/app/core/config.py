@@ -18,15 +18,7 @@ class Settings(BaseSettings):
     app_name: str = "PublishPro-AI Python AI Service"
     app_version: str = "0.1.0"
 
-    # Text (captions and hashtags) is written by Gemini. It does text only.
-    gemini_api_key: SecretStr | None = None
-    # Model names are settings so they can change without a code edit. This one is
-    # not the newest on purpose: gemini-3.7-flash and 3.8-flash kept answering
-    # "high demand" (503) while testing, and 3.6 answered every time.
-    gemini_text_model: str = "gemini-3.6-flash"
-
-    # Thumbnail pictures come from Magic Hour. It has its own key, so the text side
-    # and the image side never depend on each other.
+    # Thumbnail pictures come from Magic Hour.
     magic_hour_api_key: SecretStr | None = None
     # Model and resolution are settings so they can change without a code edit.
     # The SDK lists the values it accepts; "640px" is the smallest, and the cheapest to test with.
@@ -50,7 +42,7 @@ class Settings(BaseSettings):
     b2_region: str | None = None
 
     # Shared secret that Spring Boot sends in X-Internal-Service-Token.
-    # Optional here so the app can still start; the content endpoint answers
+    # Optional here so the app can still start; the thumbnail endpoint answers
     # 503 until it is set.
     ai_service_shared_secret: SecretStr | None = None
 

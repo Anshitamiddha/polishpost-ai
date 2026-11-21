@@ -1,7 +1,7 @@
 """How a failure inside a service becomes an HTTP answer.
 
-Shared by the content and thumbnail routes, so both give the same status codes
-and the same JSON shape.
+Shared by the routes, so they all give the same status codes and the same JSON
+shape.
 """
 
 import logging

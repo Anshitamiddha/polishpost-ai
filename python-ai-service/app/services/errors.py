@@ -1,4 +1,4 @@
-"""Errors the generation services (captions and thumbnails) can raise.
+"""Errors the thumbnail generation service can raise.
 
 Each class means something different to the caller, so the routes can turn them
 into HTTP status codes with one lookup per class. The messages are fixed
@@ -60,7 +60,7 @@ class ProviderRequestError(ContentGenerationError):
 
 
 class InvalidModelOutputError(ContentGenerationError):
-    """The model replied, but the reply was not valid captions and hashtags."""
+    """The provider replied, but the reply was not usable (an unreadable answer or a bad file)."""
 
     default_message = "The AI service returned an unusable response."
 
