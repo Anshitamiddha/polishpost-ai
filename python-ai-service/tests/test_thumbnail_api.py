@@ -199,6 +199,24 @@ def test_the_creative_prompt_is_optional_but_not_empty_when_given(client, servic
     assert post(client, {**BODY, "visual_style": "  "}).status_code == 422  # given, but blank
 
 
+def test_the_request_has_no_field_for_a_number_of_pictures():
+    assert set(ThumbnailRequest.model_fields) == {
+        "workspace_id",
+        "video_topic",
+        "heading",
+        "subtitle",
+        "visual_style",
+    }
+
+
+@pytest.mark.parametrize("field", ["image_count", "count", "variations", "num_images", "number_of_images"])
+def test_a_request_cannot_ask_for_more_than_one_picture(client, service, field):
+    response = post(client, {**BODY, field: 3})
+
+    assert response.status_code == 422
+    service.generate.assert_not_called()
+
+
 def test_an_empty_body_is_rejected(client, service):
     assert client.post(URL, json={}, headers={HEADER: SECRET}).status_code == 422
     assert client.post(URL, content=b"not json", headers={HEADER: SECRET}).status_code == 422
@@ -313,6 +331,18 @@ def real_service(fake, b2, tmp_path):
     )
     app.dependency_overrides[thumbnails.get_thumbnail_service] = lambda: real
     return real
+
+
+def test_a_full_run_asks_magic_hour_once_and_answers_with_one_picture(client, fake, b2, real_service):
+    response = post(client)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body["image"], dict)  # one picture, not a list
+    assert "images" not in body
+    assert len(fake.creates()) == 1
+    assert fake.creates()[0]["body"]["image_count"] == 1
+    assert len(b2.puts) == 1
 
 
 def test_the_global_prompt_travels_from_the_request_to_magic_hour(client, fake, real_service):

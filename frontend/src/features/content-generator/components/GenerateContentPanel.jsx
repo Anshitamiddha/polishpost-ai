@@ -2,7 +2,7 @@ import { useId } from "react";
 
 import { ArrowRightIcon, HashIcon, ImageIcon, InfoIcon, ListIcon, SparklesIcon } from "./icons";
 
-function ActionButton({ icon, label, note, primary, loading, disabled, describedBy, onClick }) {
+function ActionButton({ icon, label, primary, loading, disabled, describedBy, onClick }) {
   return (
     <button
       type="button"
@@ -15,7 +15,6 @@ function ActionButton({ icon, label, note, primary, loading, disabled, described
       <span className="cg-action-icon">{icon}</span>
       <span className="cg-action-label">
         {loading ? "Generating…" : label}
-        {note && !loading && <small>{note}</small>}
       </span>
       {loading ? <span className="cg-spinner" aria-hidden="true" /> : <ArrowRightIcon size={18} />}
     </button>
@@ -70,8 +69,7 @@ function GenerateContentPanel({
         />
         <ActionButton
           icon={<ImageIcon size={20} />}
-          label="Generate thumbnails"
-          note="3 variations"
+          label="Generate thumbnail"
           loading={thumbnailsLoading}
           disabled={disabled}
           describedBy={describedBy}

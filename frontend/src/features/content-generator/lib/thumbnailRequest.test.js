@@ -32,6 +32,14 @@ describe("buildThumbnailRequest", () => {
     assert.equal(buildThumbnailRequest({ ...brief, prompt: "" }).prompt, "");
   });
 
+  it("never asks for a number of thumbnails, so the backend always makes exactly one", () => {
+    const request = buildThumbnailRequest({ ...brief, count: 3, variations: 3, imageCount: 3 });
+
+    for (const key of ["count", "variations", "imageCount", "image_count", "numImages"]) {
+      assert.equal(key in request, false);
+    }
+  });
+
   it("sends only what the backend reads", () => {
     assert.deepEqual(Object.keys(buildThumbnailRequest(brief)).sort(), [
       "description",

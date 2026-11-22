@@ -433,20 +433,13 @@
   min-width: 0;
 }
 
-.cg-action-label small {
-  color: var(--cg-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
 .cg-action--primary {
   border-color: var(--cg-accent);
   background: var(--cg-accent);
   color: #ffffff;
 }
 
-.cg-action--primary .cg-action-icon,
-.cg-action--primary .cg-action-label small {
+.cg-action--primary .cg-action-icon {
   color: rgb(255 255 255 / 85%);
 }
 

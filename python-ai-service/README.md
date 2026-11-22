@@ -23,6 +23,8 @@ Send `workspace_id`, `video_topic` (what the video is about), `heading` (the tex
 
 > A YouTube thumbnail for a video about: I built a full AI app in seven days. Creative direction: Create a bold, cinematic YouTube thumbnail. Keep the creator as the main focus, use dramatic lighting, strong contrast, and leave space for a short headline. Write the headline "AI APP IN 7 DAYS" in huge, bold, high-contrast letters that are easy to read on a phone. Keep the layout uncluttered, with one clear main subject. No other text, logos or watermarks.
 
+It always makes exactly one picture. The request has no field for a number of pictures (an extra field such as `image_count` is refused with a 422), and the service always asks Magic Hour for `image_count` 1.
+
 Without a `visual_style`, the "Creative direction" sentence is simply left out. The React page does not call this service. It goes through the Spring Boot backend, which sends `title` as `heading`, `description` as `video_topic` and the prompt as `visual_style`.
 
 `workspace_id` is a whole number above zero. Only the Spring Boot backend may set it, and only after it has checked that the user belongs to that workspace. This service has no database, so it trusts the value because the caller proved who it is with `X-Internal-Service-Token`. It is read from the request body and nowhere else. The browser must never send it straight to this service.

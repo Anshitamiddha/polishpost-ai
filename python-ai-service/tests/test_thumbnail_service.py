@@ -119,6 +119,32 @@ def test_the_request_to_magic_hour_has_the_documented_shape(fake, make_service):
     assert create["headers"]["authorization"] == f"Bearer {KEY}"
 
 
+# --- exactly one picture ----------------------------------------------------------
+
+
+def test_one_generation_asks_magic_hour_for_exactly_one_picture_and_keeps_one(fake, make_service, b2, output_dir):
+    result = make_service().generate(REQUEST)
+
+    (create,) = fake.creates()  # one job per request, never one per variation
+    assert create["body"]["image_count"] == 1
+    assert len(b2.puts) == 1
+    assert files_in(output_dir) == [result.image.reference]
+
+
+def test_if_magic_hour_ever_lists_two_pictures_only_one_is_kept(fake, make_service, b2, output_dir):
+    expires = "2026-11-18T12:00:00Z"
+    links = [
+        {"url": f"{fake.url}/files/first.png", "expires_at": expires},
+        {"url": f"{fake.url}/files/second.png", "expires_at": expires},
+    ]
+    fake.poll_replies = [fake.project("complete", downloads=links)]
+
+    result = make_service().generate(REQUEST)
+
+    assert len(b2.puts) == 1
+    assert files_in(output_dir) == [result.image.reference]  # the second picture is not kept
+
+
 def test_the_prompt_has_no_subtitle_line_when_none_is_given():
     without = ThumbnailRequest(workspace_id=12, video_topic="Sunrise hike", heading="ALPS", visual_style="cinematic")
 

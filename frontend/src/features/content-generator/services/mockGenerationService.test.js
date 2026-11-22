@@ -5,7 +5,6 @@ import {
   createThumbnailVersion,
   generateCaptions,
   generateHashtags,
-  generateThumbnailConcepts,
 } from "./mockGenerationService.js";
 
 // The service pauses for a second to imitate real work. Fake timers let a test
@@ -49,24 +48,6 @@ describe("mockGenerationService", () => {
     const hashtags = await finished(() => generateHashtags({ topic: "पायथन सीखें" }));
 
     assert.ok(hashtags.includes("#पायथन"));
-  });
-
-  it("makes three thumbnail concepts with a headline and a palette", async () => {
-    const concepts = await finished(() =>
-      generateThumbnailConcepts({ topic: "Build AI apps faster today" }),
-    );
-
-    assert.equal(concepts.length, 3);
-    for (const concept of concepts) {
-      assert.ok(concept.headline.length > 0);
-      assert.equal(typeof concept.palette, "number");
-    }
-  });
-
-  it("still makes concepts when the topic has no usable words", async () => {
-    const concepts = await finished(() => generateThumbnailConcepts({ topic: "!!!" }));
-
-    assert.ok(concepts.every((concept) => concept.headline.length > 0));
   });
 
   it("makes a new version in a different palette, keeping the headline", async () => {

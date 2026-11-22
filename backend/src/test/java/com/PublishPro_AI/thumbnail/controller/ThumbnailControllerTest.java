@@ -81,6 +81,31 @@ class ThumbnailControllerTest {
     }
 
     @Test
+    void aNumberOfThumbnailsSentByTheClientIsIgnoredAndOneImageComesBack() throws Exception {
+        ThumbnailResponse answer = new ThumbnailResponse(
+                "complete",
+                new ThumbnailImage(640, 360, "png", "a1", "workspaces/12/generated/a1.png", "image/png", 1234),
+                "job-1",
+                5
+        );
+        when(service.generate(any(), any(), any())).thenReturn(answer);
+
+        send("""
+                {"title": "A good title", "count": 3, "variations": 3, "imageCount": 3}
+                """)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.image.objectKey").value("workspaces/12/generated/a1.png"))
+                .andExpect(jsonPath("$.images").doesNotExist());
+
+        // The service only ever sees the three fields it knows, so no count can travel on.
+        verify(service).generate(
+                12L,
+                new GenerateThumbnailRequest("A good title", null, null),
+                "me@example.com"
+        );
+    }
+
+    @Test
     void aBadRequestIsRefusedWithTheFirstMessageAndNothingIsGenerated() throws Exception {
         send("""
                 {"title": "ab", "prompt": "neon city"}

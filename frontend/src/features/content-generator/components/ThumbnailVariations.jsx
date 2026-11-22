@@ -14,10 +14,7 @@ function ThumbnailVariations({ thumbnails }) {
         <span className="cg-card-icon">
           <ImageIcon />
         </span>
-        <h2 id={titleId}>Thumbnail variations</h2>
-        {variations.length > 0 && !isGenerating && (
-          <span className="cg-chip">{variations.length} concepts</span>
-        )}
+        <h2 id={titleId}>Thumbnail</h2>
       </header>
 
       {error && (
@@ -27,10 +24,8 @@ function ThumbnailVariations({ thumbnails }) {
       )}
 
       {isGenerating && (
-        <ul className="cg-variation-grid" aria-busy="true" aria-label="Generating thumbnails">
-          {[1, 2, 3].map((slot) => (
-            <li key={slot} className="cg-skeleton" aria-hidden="true" />
-          ))}
+        <ul className="cg-variation-grid" aria-busy="true" aria-label="Generating thumbnail">
+          <li className="cg-skeleton" aria-hidden="true" />
         </ul>
       )}
 
@@ -51,7 +46,7 @@ function ThumbnailVariations({ thumbnails }) {
 
       {!isGenerating && variations.length === 0 && !error && (
         <p className="cg-empty">
-          Add a video topic, then choose “Generate thumbnails”. Your concepts will appear here.
+          Add a video topic, then choose “Generate thumbnail”. Your thumbnail will appear here.
         </p>
       )}
 

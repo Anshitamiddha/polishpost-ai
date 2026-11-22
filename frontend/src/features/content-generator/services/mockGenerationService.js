@@ -81,20 +81,6 @@ export async function generateHashtags(brief, { signal } = {}) {
   });
 }
 
-// Three headline ideas built from the first words of the topic.
-export async function generateThumbnailConcepts(brief, { signal } = {}) {
-  await wait(FAKE_WORK_MS, signal);
-
-  const words = topicWords(brief.topic);
-  const take = (count) => words.slice(0, count).join(" ");
-  const headlines = [take(4), `Watch: ${take(3)}`, `${take(3)} explained`];
-
-  return headlines.map((headline, index) => ({
-    headline: headline.trim() || "Your next video",
-    palette: index % THUMBNAIL_PALETTES.length,
-  }));
-}
-
 // A new version of one thumbnail. Same headline, next colours, so a version is
 // visibly different from the one it came from.
 export async function createThumbnailVersion({ headline, palette, kind }, { signal } = {}) {

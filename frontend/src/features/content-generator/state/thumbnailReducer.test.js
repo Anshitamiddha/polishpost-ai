@@ -153,6 +153,17 @@ describe("thumbnailReducer", () => {
     assert.deepEqual(done.variations, []);
   });
 
+  it("holds one thumbnail: a second one replaces the first instead of adding to it", () => {
+    const first = { status: "complete", image: { assetId: "one" } };
+    const second = { status: "complete", image: { assetId: "two" } };
+
+    const afterFirst = thumbnailReducer(initialThumbnailState, { type: "thumbnail_created", thumbnail: first });
+    const afterSecond = thumbnailReducer(afterFirst, { type: "thumbnail_created", thumbnail: second });
+
+    assert.equal(afterSecond.thumbnail, second);
+    assert.equal(Array.isArray(afterSecond.thumbnail), false);
+  });
+
   it("forgets the old thumbnail when a new generation starts, and after a failure", () => {
     const withThumbnail = thumbnailReducer(initialThumbnailState, {
       type: "thumbnail_created",

@@ -124,6 +124,21 @@ class ThumbnailServiceTest {
     }
 
     @Test
+    void oneRequestMakesOneCallThatAsksForNoNumberOfPictures() {
+        aiService.expect(requestTo(GENERATE_URL))
+                // Only these four fields: nothing in the request can ask for more than one picture.
+                .andExpect(jsonPath("$.length()").value(4))
+                .andExpect(jsonPath("$.image_count").doesNotExist())
+                .andExpect(jsonPath("$.count").doesNotExist())
+                .andRespond(withSuccess(AI_ANSWER, MediaType.APPLICATION_JSON));
+
+        ThumbnailResponse response = service.generate(WORKSPACE_ID, request("a video", PROMPT), EMAIL);
+
+        aiService.verify(); // exactly one call was made, and it was the expected one
+        assertEquals("a1", response.image().assetId());
+    }
+
+    @Test
     void aDifferentPromptGivesADifferentRequest() {
         aiService.expect(requestTo(GENERATE_URL))
                 .andExpect(jsonPath("$.visual_style").value("soft pastel colors"))
