@@ -18,6 +18,7 @@ import {
   PROMPT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,
 } from "./lib/formLimits";
+import { useWorkspace } from "../workspace/useWorkspace";
 import { generateCaptions, generateHashtags } from "./services/mockGenerationService";
 import "./content-generator.css";
 
@@ -32,6 +33,7 @@ function ContentGeneratorPage() {
   const captions = useAsyncAction(generateCaptions);
   const hashtags = useAsyncAction(generateHashtags);
   const thumbnails = useThumbnailVariations();
+  const { selectedWorkspace } = useWorkspace();
   const { copiedKey, copy } = useCopyToClipboard();
 
   // What generation is based on. Memoised so its identity only changes when
@@ -72,7 +74,7 @@ function ContentGeneratorPage() {
             thumbnailsLoading={thumbnails.isGenerating}
             onCaptions={() => captions.run(brief)}
             onHashtags={() => hashtags.run(brief)}
-            onThumbnails={() => thumbnails.generate(brief)}
+            onThumbnails={() => thumbnails.generate(brief, selectedWorkspace?.id)}
           />
           <GeneratedText
             captions={captions}

@@ -1,7 +1,8 @@
 // PLACEHOLDER generation. Nothing here calls an AI.
 //
 // The browser cannot call the Python AI service directly (it holds the API
-// keys), and the Spring Boot route that will forward to it does not exist yet.
+// keys), so it goes through the Spring Boot backend. That route exists for
+// thumbnails (see thumbnailService.js) but not yet for captions and hashtags.
 // Until then these functions return simple, template-based results after a
 // short pause, so the whole page can be built and tried out.
 //
