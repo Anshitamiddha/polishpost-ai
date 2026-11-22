@@ -157,7 +157,7 @@ def test_spaces_around_the_text_are_trimmed(client, service):
 # --- bad requests ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("missing", ["workspace_id", "video_topic", "heading", "visual_style"])
+@pytest.mark.parametrize("missing", ["workspace_id", "video_topic", "heading"])
 def test_each_required_field_is_required(client, service, missing):
     body = {key: value for key, value in BODY.items() if key != missing}
 
@@ -189,6 +189,14 @@ def test_bad_values_are_rejected_before_the_service(client, service, change):
 
     assert response.status_code == 422
     service.generate.assert_not_called()
+
+
+def test_the_creative_prompt_is_optional_but_not_empty_when_given(client, service):
+    without_prompt = {key: value for key, value in BODY.items() if key != "visual_style"}
+
+    assert post(client, without_prompt).status_code == 200
+    assert service.generate.call_args.args[0].visual_style is None
+    assert post(client, {**BODY, "visual_style": "  "}).status_code == 422  # given, but blank
 
 
 def test_an_empty_body_is_rejected(client, service):
@@ -305,6 +313,26 @@ def real_service(fake, b2, tmp_path):
     )
     app.dependency_overrides[thumbnails.get_thumbnail_service] = lambda: real
     return real
+
+
+def test_the_global_prompt_travels_from_the_request_to_magic_hour(client, fake, real_service):
+    prompt = "Create a bold, cinematic YouTube thumbnail. Leave space for a short headline."
+
+    response = post(client, {**BODY, "visual_style": prompt})
+
+    assert response.status_code == 200
+    (create,) = fake.creates()
+    sent = create["body"]["style"]["prompt"]
+    assert prompt in sent
+    assert BODY["video_topic"] in sent and BODY["heading"] in sent
+
+
+def test_a_request_without_a_prompt_still_reaches_magic_hour(client, fake, real_service):
+    without_prompt = {key: value for key, value in BODY.items() if key != "visual_style"}
+
+    assert post(client, without_prompt).status_code == 200
+    (create,) = fake.creates()
+    assert "Creative direction" not in create["body"]["style"]["prompt"]
 
 
 def test_a_full_run_saves_the_picture_and_answers_without_paths(client, fake, real_service, tmp_path):

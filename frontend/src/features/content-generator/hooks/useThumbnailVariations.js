@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 
-import {
-  createThumbnailVersion,
-  generateThumbnailConcepts,
-} from "../services/mockGenerationService";
+import { createThumbnailVersion } from "../services/mockGenerationService";
+import { generateThumbnail } from "../services/thumbnailService";
 import {
   getActiveVersion,
   initialThumbnailState,
@@ -16,9 +14,10 @@ function toMessage(error) {
     : "Something went wrong. Please try again.";
 }
 
-// Everything the thumbnail section does: generate a set, then edit or
-// regenerate one variation at a time. The reducer owns the state; this hook
-// does the waiting and tells the reducer what happened.
+// Everything the thumbnail section does. Generating asks the backend for one
+// real thumbnail. Editing and regenerating a variation are still placeholders.
+// The reducer owns the state; this hook does the waiting and tells the reducer
+// what happened.
 export function useThumbnailVariations() {
   const [state, dispatch] = useReducer(thumbnailReducer, initialThumbnailState);
 
@@ -30,15 +29,12 @@ export function useThumbnailVariations() {
     return () => own.abort();
   }, []);
 
-  const generate = useCallback(async (brief) => {
+  const generate = useCallback(async (brief, workspaceId) => {
     dispatch({ type: "generation_started" });
     try {
-      const concepts = await generateThumbnailConcepts(brief, {
-        signal: controller.current.signal,
-      });
-      dispatch({ type: "generation_succeeded", concepts });
+      const thumbnail = await generateThumbnail(workspaceId, brief);
+      dispatch({ type: "thumbnail_created", thumbnail });
     } catch (error) {
-      if (error.name === "AbortError") return;
       dispatch({ type: "generation_failed", message: toMessage(error) });
     }
   }, []);
@@ -89,6 +85,7 @@ export function useThumbnailVariations() {
     variations: state.variations,
     isGenerating: state.generating,
     error: state.error,
+    thumbnail: state.thumbnail,
     generate,
     regenerate,
     edit,

@@ -141,6 +141,32 @@ describe("thumbnailReducer", () => {
     assert.equal(after, secondSet);
   });
 
+  it("keeps the one real thumbnail and shows no variations for it", () => {
+    const thumbnail = { status: "complete", image: { objectKey: "workspaces/12/generated/a1.png" } };
+    const started = thumbnailReducer(initialThumbnailState, { type: "generation_started" });
+
+    const done = thumbnailReducer(started, { type: "thumbnail_created", thumbnail });
+
+    assert.equal(done.thumbnail, thumbnail);
+    assert.equal(done.generating, false);
+    assert.equal(done.error, null);
+    assert.deepEqual(done.variations, []);
+  });
+
+  it("forgets the old thumbnail when a new generation starts, and after a failure", () => {
+    const withThumbnail = thumbnailReducer(initialThumbnailState, {
+      type: "thumbnail_created",
+      thumbnail: { status: "complete" },
+    });
+
+    const started = thumbnailReducer(withThumbnail, { type: "generation_started" });
+    assert.equal(started.thumbnail, null);
+
+    const failed = thumbnailReducer(started, { type: "generation_failed", message: "No luck" });
+    assert.equal(failed.thumbnail, null);
+    assert.equal(failed.error, "No luck");
+  });
+
   it("returns the same state for an unknown action", () => {
     const state = generated();
     assert.equal(thumbnailReducer(state, { type: "something_else" }), state);

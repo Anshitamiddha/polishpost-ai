@@ -126,6 +126,81 @@ def test_the_prompt_has_no_subtitle_line_when_none_is_given():
     assert "subtitle" in build_prompt(REQUEST)
 
 
+# --- the global creative prompt reaches Magic Hour ---------------------------------
+
+# The default text from the Create Post page. It is only test data here: the service
+# never contains a prompt of its own, it uses whatever the user wrote.
+GLOBAL_PROMPT = (
+    "Create a bold, cinematic YouTube thumbnail. Keep the creator as the main focus, "
+    "use dramatic lighting, strong contrast, and leave space for a short headline."
+)
+
+
+def request_with_prompt(prompt, **changes):
+    values = {
+        "workspace_id": 12,
+        "video_topic": "How I built a full AI app in seven days",
+        "heading": "AI APP IN 7 DAYS",
+        "visual_style": prompt,
+    }
+    return ThumbnailRequest(**{**values, **changes})
+
+
+def prompt_sent_to_magic_hour(fake):
+    (create,) = fake.creates()
+    return create["body"]["style"]["prompt"]
+
+
+def test_the_global_prompt_reaches_magic_hour_joined_with_the_topic_and_heading(fake, make_service):
+    make_service().generate(request_with_prompt(GLOBAL_PROMPT, subtitle="Day by day"))
+
+    assert prompt_sent_to_magic_hour(fake) == (
+        "A YouTube thumbnail for a video about: How I built a full AI app in seven days. "
+        f"Creative direction: {GLOBAL_PROMPT} "
+        'Write the headline "AI APP IN 7 DAYS" in huge, bold, high-contrast letters that are easy to read on a phone. '
+        'Add the smaller subtitle "Day by day" under the headline. '
+        "Keep the layout uncluttered, with one clear main subject. No other text, logos or watermarks."
+    )
+
+
+def test_the_user_text_is_sent_as_written_so_another_prompt_gives_another_result(fake, make_service):
+    service = make_service()
+
+    service.generate(request_with_prompt("soft pastel colors, flat illustration"))
+    service.generate(request_with_prompt("dark horror mood, red fog"))
+
+    first, second = (create["body"]["style"]["prompt"] for create in fake.creates())
+    assert "soft pastel colors, flat illustration." in first and "horror" not in first
+    assert "dark horror mood, red fog." in second and "pastel" not in second
+
+
+def test_the_service_adds_no_style_of_its_own_that_could_fight_the_user(fake, make_service):
+    make_service().generate(request_with_prompt("soft pastel colors"))
+
+    prompt = prompt_sent_to_magic_hour(fake)
+    for imposed in ("saturated", "dramatic", "cinematic", "neon"):
+        assert imposed not in prompt
+
+
+def test_without_a_prompt_the_thumbnail_is_still_requested_with_no_direction_line(fake, make_service):
+    make_service().generate(request_with_prompt(None))
+
+    prompt = prompt_sent_to_magic_hour(fake)
+    assert "Creative direction" not in prompt
+    assert "How I built a full AI app in seven days" in prompt and "AI APP IN 7 DAYS" in prompt
+
+
+@pytest.mark.parametrize("ending", [".", "!", "?"])
+def test_a_prompt_that_already_ends_like_a_sentence_gets_no_extra_full_stop(ending):
+    prompt = build_prompt(request_with_prompt(f"make it pop{ending}"))
+
+    assert f"Creative direction: make it pop{ending} Write the headline" in prompt
+
+
+def test_a_prompt_without_an_ending_gets_a_full_stop():
+    assert "Creative direction: make it pop. Write the headline" in build_prompt(request_with_prompt("make it pop"))
+
+
 def test_a_new_picture_never_replaces_an_old_one(fake, make_service, output_dir):
     service = make_service()
 

@@ -11,6 +11,8 @@ export const initialThumbnailState = {
   generating: false,
   error: null,
   variations: [],
+  // The one real thumbnail the backend made (its answer). Nothing shows it yet.
+  thumbnail: null,
 };
 
 function makeVariation(id, concept) {
@@ -48,7 +50,7 @@ function updateVariation(state, id, change) {
 export function thumbnailReducer(state, action) {
   switch (action.type) {
     case "generation_started":
-      return { ...state, generating: true, error: null };
+      return { ...state, generating: true, error: null, thumbnail: null };
 
     case "generation_succeeded": {
       const generation = state.generation + 1;
@@ -56,11 +58,15 @@ export function thumbnailReducer(state, action) {
         generation,
         generating: false,
         error: null,
+        thumbnail: null,
         variations: action.concepts.map((concept, index) =>
           makeVariation(`g${generation}-c${index + 1}`, concept),
         ),
       };
     }
+
+    case "thumbnail_created":
+      return { ...state, generating: false, error: null, thumbnail: action.thumbnail };
 
     case "generation_failed":
       return { ...state, generating: false, error: action.message };

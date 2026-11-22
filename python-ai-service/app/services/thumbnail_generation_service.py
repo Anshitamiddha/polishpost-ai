@@ -82,19 +82,26 @@ class _SavedImage:
     extension: str  # png, jpg or webp
 
 
+def _as_sentence(text: str) -> str:
+    """End the text with a full stop unless it already ends like a sentence."""
+    return text if text[-1] in ".!?" else text + "."
+
+
 def build_prompt(request: ThumbnailRequest) -> str:
-    """Turn the request into the sentence Magic Hour draws from."""
-    parts = [
-        f"A YouTube thumbnail for a video about: {request.video_topic}.",
-        f"Visual style: {request.visual_style}.",
-        f'Write the headline "{request.heading}" in huge, bold, high-contrast letters that are easy to read on a phone.',
-    ]
+    """Turn the request into the sentence Magic Hour draws from.
+
+    The user's own creative direction goes in as written. The rest is only about
+    what to draw and how to keep the text readable, so it never fights the user's style.
+    """
+    parts = [f"A YouTube thumbnail for a video about: {request.video_topic}."]
+    if request.visual_style:
+        parts.append(f"Creative direction: {_as_sentence(request.visual_style)}")
+    parts.append(
+        f'Write the headline "{request.heading}" in huge, bold, high-contrast letters that are easy to read on a phone.'
+    )
     if request.subtitle:
         parts.append(f'Add the smaller subtitle "{request.subtitle}" under the headline.')
-    parts.append(
-        "One clear main subject, saturated colors, dramatic lighting and an uncluttered layout. "
-        "No other text, logos or watermarks."
-    )
+    parts.append("Keep the layout uncluttered, with one clear main subject. No other text, logos or watermarks.")
     return " ".join(parts)
 
 

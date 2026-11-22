@@ -56,6 +56,15 @@ public class GlobalExceptionHandler {
                    .body(exception.getMessage());
     }
 
+    @ExceptionHandler(AiServiceException.class)
+    public ResponseEntity<String> handleAiService(
+            AiServiceException exception
+    ) {
+        return ResponseEntity
+                .status(exception.getStatus())
+                .body(exception.getMessage());
+    }
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<String> handleNotFound(
             NotFoundException exception

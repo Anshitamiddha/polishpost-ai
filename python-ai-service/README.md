@@ -17,7 +17,13 @@ Every generation endpoint needs the `X-Internal-Service-Token` header. Provider 
 
 ## Thumbnails
 
-Send `workspace_id`, `video_topic`, `heading`, `visual_style` and, if you want, `subtitle`.
+Send `workspace_id`, `video_topic` (what the video is about), `heading` (the text written on the picture) and, if you want, `subtitle` and `visual_style`.
+
+`visual_style` is the user's own creative direction, the "global creative prompt" from the Create Post page. It is optional and goes into the Magic Hour prompt exactly as written, between the topic and the headline, so the service adds no style of its own that could fight it. For example, a topic of "I built a full AI app in seven days", a heading of "AI APP IN 7 DAYS" and the page's default prompt become:
+
+> A YouTube thumbnail for a video about: I built a full AI app in seven days. Creative direction: Create a bold, cinematic YouTube thumbnail. Keep the creator as the main focus, use dramatic lighting, strong contrast, and leave space for a short headline. Write the headline "AI APP IN 7 DAYS" in huge, bold, high-contrast letters that are easy to read on a phone. Keep the layout uncluttered, with one clear main subject. No other text, logos or watermarks.
+
+Without a `visual_style`, the "Creative direction" sentence is simply left out. The React page does not call this service. It goes through the Spring Boot backend, which sends `title` as `heading`, `description` as `video_topic` and the prompt as `visual_style`.
 
 `workspace_id` is a whole number above zero. Only the Spring Boot backend may set it, and only after it has checked that the user belongs to that workspace. This service has no database, so it trusts the value because the caller proved who it is with `X-Internal-Service-Token`. It is read from the request body and nowhere else. The browser must never send it straight to this service.
 

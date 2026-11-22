@@ -46,10 +46,13 @@ class ThumbnailRequest(BaseModel):
         max_length=MAX_SUBTITLE_LENGTH,
         description="Optional smaller text under the heading.",
     )
-    visual_style: str = Field(
+    # The user's "global creative prompt" arrives here. It is optional because the
+    # user may clear it, and then the thumbnail simply has no extra direction.
+    visual_style: str | None = Field(
+        default=None,
         min_length=3,
         max_length=MAX_STYLE_LENGTH,
-        description="The look wanted, for example 'neon cyberpunk city, bold colors'.",
+        description="The user's own creative direction, for example 'neon cyberpunk city, bold colors'.",
     )
 
 
