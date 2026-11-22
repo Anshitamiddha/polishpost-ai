@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it, mock } from "node:test";
 
-import {
-  createThumbnailVersion,
-  generateCaptions,
-  generateHashtags,
-} from "./mockGenerationService.js";
+import { generateCaptions, generateHashtags } from "./mockGenerationService.js";
 
 // The service pauses for a second to imitate real work. Fake timers let a test
 // skip that pause instead of waiting for it.
@@ -48,15 +44,6 @@ describe("mockGenerationService", () => {
     const hashtags = await finished(() => generateHashtags({ topic: "पायथन सीखें" }));
 
     assert.ok(hashtags.includes("#पायथन"));
-  });
-
-  it("makes a new version in a different palette, keeping the headline", async () => {
-    const art = await finished(() =>
-      createThumbnailVersion({ headline: "Hello", palette: 0, kind: "edit" }),
-    );
-
-    assert.equal(art.headline, "Hello");
-    assert.notEqual(art.palette, 0);
   });
 
   it("stops waiting when cancelled", async () => {

@@ -17,15 +17,19 @@ Every generation endpoint needs the `X-Internal-Service-Token` header. Provider 
 
 ## Thumbnails
 
-Send `workspace_id`, `video_topic` (what the video is about), `heading` (the text written on the picture) and, if you want, `subtitle` and `visual_style`.
+Send `workspace_id`, `video_topic` and, if you want, `description` and `global_prompt`. These four names are the same in React, Spring Boot and this service. Any other field, including the old `heading`, `subtitle`, `visual_style`, `title` and `prompt`, is refused with a 422.
 
-`visual_style` is the user's own creative direction, the "global creative prompt" from the Create Post page. It is optional and goes into the Magic Hour prompt exactly as written, between the topic and the headline, so the service adds no style of its own that could fight it. For example, a topic of "I built a full AI app in seven days", a heading of "AI APP IN 7 DAYS" and the page's default prompt become:
+- `video_topic` is the video's title (3 to 60 characters). It is also the text written on the picture.
+- `description` is what the video is about (up to 300 characters).
+- `global_prompt` is the user's own creative direction (up to 500 characters), the "global creative prompt" from the Create Post page.
 
-> A YouTube thumbnail for a video about: I built a full AI app in seven days. Creative direction: Create a bold, cinematic YouTube thumbnail. Keep the creator as the main focus, use dramatic lighting, strong contrast, and leave space for a short headline. Write the headline "AI APP IN 7 DAYS" in huge, bold, high-contrast letters that are easy to read on a phone. Keep the layout uncluttered, with one clear main subject. No other text, logos or watermarks.
+The Magic Hour prompt uses all three: it names the video by its `video_topic`, adds the `description` as "About the video", adds the `global_prompt` as "Creative direction", and asks for the `video_topic` to be written on the picture. The `global_prompt` goes in exactly as written, so the service adds no style of its own that could fight it. For example, a topic of "AI APP IN 7 DAYS", a description of "I built a full AI app in seven days" and the page's default prompt become:
 
-It always makes exactly one picture. The request has no field for a number of pictures (an extra field such as `image_count` is refused with a 422), and the service always asks Magic Hour for `image_count` 1.
+> A YouTube thumbnail for a video titled "AI APP IN 7 DAYS". About the video: I built a full AI app in seven days. Creative direction: Create a bold, cinematic YouTube thumbnail. Keep the creator as the main focus, use dramatic lighting, strong contrast, and leave space for a short headline. Write the title "AI APP IN 7 DAYS" in huge, bold, high-contrast letters that are easy to read on a phone. Keep the layout uncluttered, with one clear main subject. No other text, logos or watermarks.
 
-Without a `visual_style`, the "Creative direction" sentence is simply left out. The React page does not call this service. It goes through the Spring Boot backend, which sends `title` as `heading`, `description` as `video_topic` and the prompt as `visual_style`.
+A missing `description` or `global_prompt` just leaves its sentence out. The service always makes exactly one picture: the request has no field for a number of pictures, and it always asks Magic Hour for `image_count` 1.
+
+The React page does not call this service. It goes through the Spring Boot backend, which checks the workspace and then sends the same field names on. Spring must call this service over plain HTTP/1.1. Java's default asks plain-http servers to upgrade to HTTP/2, and uvicorn then loses the request body (a 422 "body: Field required"), answers "Invalid HTTP request received" or resets the connection.
 
 `workspace_id` is a whole number above zero. Only the Spring Boot backend may set it, and only after it has checked that the user belongs to that workspace. This service has no database, so it trusts the value because the caller proved who it is with `X-Internal-Service-Token`. It is read from the request body and nowhere else. The browser must never send it straight to this service.
 
@@ -37,7 +41,7 @@ What happens, in order:
 4. It saves the picture in `generated/thumbnails/` under a new name. This local copy always stays.
 5. It uploads the same file to B2 as `workspaces/{workspace_id}/generated/{asset_id}.{ending}`, for example `workspaces/12/generated/3f9c0a7e5b1d4c2e8a6f0b9d7c5e3a1f.png`. The `asset_id` is a new random ID for every picture, so nothing is ever overwritten.
 
-The answer holds `success`, `status`, `image`, `provider_generation_id` and `credits_charged`. `image` has `reference` (the local file name), `width`, `height`, `format`, `asset_id`, `object_key` (where it is in B2), `content_type` and `size_bytes`. The answer never contains a path, a link or the bucket name. The bucket is private, and there are no downloads or presigned links yet.
+The answer holds `success`, `status`, `image`, `provider_generation_id` and `credits_charged`. `image` has `reference` (the local file name), `width`, `height`, `format`, `asset_id`, `object_key` (where it is in B2), `content_type`, `size_bytes` and `preview_data_url`. `preview_data_url` is the picture itself as a data URL, so the page can show it right away without a link to the private bucket. It is empty only if the saved file could not be read back. The answer never contains a path, a link or the bucket name, and there are no downloads or presigned links yet.
 
 If something fails, the answer says which side failed:
 

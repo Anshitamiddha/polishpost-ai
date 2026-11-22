@@ -549,190 +549,24 @@
   font-weight: 600;
 }
 
-/* ---------- Thumbnail variations ---------- */
+/* ---------- Thumbnail ---------- */
 
-.cg-variation-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cg-variation {
-  min-width: 0;
-}
-
-.cg-variation-art {
-  position: relative;
+.cg-thumbnail {
   overflow: hidden;
   border-radius: 12px;
   aspect-ratio: 16 / 9;
   background: var(--cg-field);
 }
 
-.cg-art {
+.cg-thumbnail img {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.cg-version-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 2px 8px;
-  border-radius: 8px;
-  background: rgb(23 23 43 / 72%);
-  color: #ffffff;
-  font-size: 11.5px;
-  font-weight: 700;
-}
-
-.cg-variation-busy {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: rgb(23 23 43 / 62%);
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.cg-variation h3 {
-  margin: 10px 0 0;
-  font-size: 13.5px;
-  font-weight: 650;
-}
-
-.cg-origin {
-  margin: 2px 0 0;
-  color: var(--cg-muted);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.cg-versions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.cg-versions button {
-  min-width: 34px;
-  padding: 3px 8px;
-  border: 1px solid var(--cg-border);
-  border-radius: 8px;
-  background: var(--cg-surface);
-  color: var(--cg-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.cg-versions button[aria-pressed="true"] {
-  border-color: var(--cg-accent);
-  background: var(--cg-accent-soft);
-  color: var(--cg-accent-strong);
-}
-
-.cg-edit {
-  margin-top: 10px;
-}
-
-.cg-edit-row {
-  display: flex;
-  gap: 8px;
-}
-
-.cg-edit-row input {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 12px;
-  border: 1px solid #e3e3ee;
-  border-radius: 10px;
-  outline: none;
-  background: var(--cg-field);
-  color: var(--cg-text);
-  font: inherit;
-  font-size: 13px;
-}
-
-.cg-edit-row input:focus-visible {
-  border-color: var(--cg-accent);
-  background: var(--cg-surface);
-  box-shadow: 0 0 0 3px rgb(var(--cg-ring) / 14%);
-}
-
-.cg-icon-button {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 36px;
-  border: 1px solid var(--cg-accent-border);
-  border-radius: 10px;
-  background: var(--cg-surface);
-  color: var(--cg-accent-strong);
-  cursor: pointer;
-}
-
-.cg-icon-button:hover {
-  background: var(--cg-accent-soft);
-}
-
-.cg-edit-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.cg-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.cg-button--soft {
-  background: var(--cg-accent-soft);
-  color: var(--cg-accent-strong);
-}
-
-.cg-button--soft:hover:not(:disabled) {
-  background: var(--cg-accent-hover);
-}
-
-.cg-button--outline {
-  border-color: var(--cg-accent-border);
-  background: var(--cg-surface);
-  color: var(--cg-accent-strong);
-}
-
-.cg-button--outline:hover:not(:disabled) {
-  background: var(--cg-accent-soft);
-}
-
-.cg-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  object-fit: cover;
 }
 
 .cg-skeleton {
-  aspect-ratio: 16 / 11;
+  aspect-ratio: 16 / 9;
   border-radius: 12px;
   background: linear-gradient(
     90deg,
@@ -746,9 +580,6 @@
 
 /* Keyboard focus rings for the smaller controls. */
 .cg-copy:focus-visible,
-.cg-button:focus-visible,
-.cg-icon-button:focus-visible,
-.cg-versions button:focus-visible,
 .cg-reference-remove:focus-visible {
   outline: 3px solid rgb(var(--cg-ring) / 28%);
   outline-offset: 2px;
@@ -786,10 +617,6 @@
 
   .cg-heading h1 {
     font-size: 28px;
-  }
-
-  .cg-variation-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .cg-reference-grid {

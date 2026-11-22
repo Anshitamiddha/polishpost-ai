@@ -7,14 +7,15 @@ export function thumbnailEndpoint(workspaceId) {
   return `/api/workspaces/${workspaceId}/thumbnails`;
 }
 
-// `brief` is built in ContentGeneratorPage. The title becomes the text written
-// on the thumbnail, the description says what the video is about, and the
-// global creative prompt goes along exactly as the user wrote it. The backend
-// leaves out a blank prompt.
+// `brief` is built in ContentGeneratorPage. The field names are the same in
+// React, Spring Boot and the AI service: the video topic (also the text written
+// on the thumbnail), the description, and the global creative prompt exactly as
+// the user wrote it. The workspace is in the URL, not here. The backend leaves
+// out a blank description or prompt.
 export function buildThumbnailRequest(brief) {
   return {
-    title: brief.topic,
+    video_topic: brief.topic,
     description: brief.description,
-    prompt: brief.prompt,
+    global_prompt: brief.prompt,
   };
 }

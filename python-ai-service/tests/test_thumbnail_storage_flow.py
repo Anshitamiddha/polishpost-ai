@@ -39,8 +39,8 @@ def request(workspace_id: int = 12) -> ThumbnailRequest:
     return ThumbnailRequest(
         workspace_id=workspace_id,
         video_topic="Sunrise hike in the Alps",
-        heading="ALPS AT DAWN",
-        visual_style="cinematic, golden light",
+        description="A sunrise hike with a great view",
+        global_prompt="cinematic, golden light",
     )
 
 

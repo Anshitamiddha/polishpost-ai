@@ -5,13 +5,13 @@ import GeneratedText from "./components/GeneratedText";
 import PageHeading from "./components/PageHeading";
 import PromptPanel from "./components/PromptPanel";
 import ReferenceImagesPanel from "./components/ReferenceImagesPanel";
-import ThumbnailVariations from "./components/ThumbnailVariations";
+import ThumbnailPreview from "./components/ThumbnailPreview";
 import VideoDetailsForm from "./components/VideoDetailsForm";
 import { useAsyncAction } from "./hooks/useAsyncAction";
 import { useCopyToClipboard } from "./hooks/useCopyToClipboard";
 import { useLimitedText } from "./hooks/useLimitedText";
 import { useReferenceImages } from "./hooks/useReferenceImages";
-import { useThumbnailVariations } from "./hooks/useThumbnailVariations";
+import { useThumbnailGeneration } from "./hooks/useThumbnailGeneration";
 import {
   DEFAULT_PROMPT,
   DESCRIPTION_MAX_LENGTH,
@@ -32,7 +32,7 @@ function ContentGeneratorPage() {
 
   const captions = useAsyncAction(generateCaptions);
   const hashtags = useAsyncAction(generateHashtags);
-  const thumbnails = useThumbnailVariations();
+  const thumbnails = useThumbnailGeneration();
   const { selectedWorkspace } = useWorkspace();
   const { copiedKey, copy } = useCopyToClipboard();
 
@@ -82,7 +82,7 @@ function ContentGeneratorPage() {
             copiedKey={copiedKey}
             onCopy={copy}
           />
-          <ThumbnailVariations thumbnails={thumbnails} />
+          <ThumbnailPreview thumbnails={thumbnails} />
         </div>
       </div>
     </div>

@@ -3,15 +3,12 @@
 // The browser cannot call the Python AI service directly (it holds the API
 // keys), so it goes through the Spring Boot backend. That route exists for
 // thumbnails (see thumbnailService.js) but not yet for captions and hashtags.
-// Until then these functions return simple, template-based results after a
-// short pause, so the whole page can be built and tried out.
+// Until then these two functions return simple, template-based results after a
+// short pause, so the page can be tried out.
 //
 // To go live, write a real service with the same function names and swap the
 // imports in the hooks. Captions and hashtags already match the AI service's
 // response lists; the request will map from `brief`.
-
-// The ".js" is needed so Node's test runner can load this file too.
-import { THUMBNAIL_PALETTES } from "../lib/thumbnailPalettes.js";
 
 const FAKE_WORK_MS = 1000;
 
@@ -79,13 +76,4 @@ export async function generateHashtags(brief, { signal } = {}) {
     seen.add(tag);
     return true;
   });
-}
-
-// A new version of one thumbnail. Same headline, next colours, so a version is
-// visibly different from the one it came from.
-export async function createThumbnailVersion({ headline, palette, kind }, { signal } = {}) {
-  await wait(FAKE_WORK_MS, signal);
-
-  const step = kind === "edit" ? 2 : 1;
-  return { headline, palette: (palette + step) % THUMBNAIL_PALETTES.length };
 }

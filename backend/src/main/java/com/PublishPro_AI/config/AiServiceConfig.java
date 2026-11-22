@@ -13,7 +13,11 @@ public class AiServiceConfig {
 
     @Bean
     public RestClient aiServiceClient(AiServiceProperties properties) {
+        // Plain HTTP/1.1 on purpose. Java's default asks the server to upgrade to
+        // HTTP/2, which uvicorn does not support: it loses the request body (422),
+        // answers "Invalid HTTP request received" (400) or resets the connection.
         HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
 

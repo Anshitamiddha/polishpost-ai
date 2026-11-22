@@ -26,8 +26,8 @@ SECRET = "unit-test-shared-secret"
 BODY = {
     "workspace_id": 12,
     "video_topic": "Sunrise hike in the Alps",
-    "heading": "ALPS AT DAWN",
-    "visual_style": "cinematic, golden light",
+    "description": "A sunrise hike with a great view",
+    "global_prompt": "cinematic, golden light",
 }
 
 GOOD_RESULT = ThumbnailResponse(

@@ -60,17 +60,19 @@ class ThumbnailControllerTest {
     void thePagesPromptAndTheWorkspaceInTheUrlReachTheService() throws Exception {
         ThumbnailResponse answer = new ThumbnailResponse(
                 "complete",
-                new ThumbnailImage(640, 360, "png", "a1", "workspaces/12/generated/a1.png", "image/png", 1234),
+                new ThumbnailImage(640, 360, "png", "a1", "workspaces/12/generated/a1.png", "image/png", 1234, "data:image/png;base64,AAAA"),
                 "job-1",
                 5
         );
         when(service.generate(eq(12L), any(), eq("me@example.com"))).thenReturn(answer);
 
         send("""
-                {"title": "AI APP IN 7 DAYS", "description": "I built an app", "prompt": "neon city"}
+                {"video_topic": "AI APP IN 7 DAYS", "description": "I built an app", "global_prompt": "neon city"}
                 """)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.image.objectKey").value("workspaces/12/generated/a1.png"))
+                // The page draws this, so it has to reach the browser under this name.
+                .andExpect(jsonPath("$.image.previewDataUrl").value("data:image/png;base64,AAAA"))
                 .andExpect(jsonPath("$.creditsCharged").value(5));
 
         verify(service).generate(
@@ -84,14 +86,14 @@ class ThumbnailControllerTest {
     void aNumberOfThumbnailsSentByTheClientIsIgnoredAndOneImageComesBack() throws Exception {
         ThumbnailResponse answer = new ThumbnailResponse(
                 "complete",
-                new ThumbnailImage(640, 360, "png", "a1", "workspaces/12/generated/a1.png", "image/png", 1234),
+                new ThumbnailImage(640, 360, "png", "a1", "workspaces/12/generated/a1.png", "image/png", 1234, "data:image/png;base64,AAAA"),
                 "job-1",
                 5
         );
         when(service.generate(any(), any(), any())).thenReturn(answer);
 
         send("""
-                {"title": "A good title", "count": 3, "variations": 3, "imageCount": 3}
+                {"video_topic": "A good title", "count": 3, "variations": 3, "imageCount": 3}
                 """)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.image.objectKey").value("workspaces/12/generated/a1.png"))
@@ -108,19 +110,28 @@ class ThumbnailControllerTest {
     @Test
     void aBadRequestIsRefusedWithTheFirstMessageAndNothingIsGenerated() throws Exception {
         send("""
-                {"title": "ab", "prompt": "neon city"}
+                {"video_topic": "ab", "global_prompt": "neon city"}
                 """)
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string("Title must be between 3 and 60 characters"));
+                .andExpect(content().string("Video topic must be between 3 and 60 characters"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void theOldFieldNamesAreNotReadSoNoLayerDriftsApart() throws Exception {
+        send("{\"title\": \"A good title\", \"prompt\": \"neon city\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("Video topic is required"));
 
         verifyNoInteractions(service);
     }
 
     @Test
     void aMissingTitleIsRefused() throws Exception {
-        send("{\"prompt\": \"neon city\"}")
+        send("{\"global_prompt\": \"neon city\"}")
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string("Title is required"));
+                .andExpect(content().string("Video topic is required"));
 
         verifyNoInteractions(service);
     }
@@ -130,7 +141,7 @@ class ThumbnailControllerTest {
         when(service.generate(any(), any(), any()))
                 .thenThrow(new ForbiddenException("User is not a member of this workspace"));
 
-        send("{\"title\": \"A good title\"}")
+        send("{\"video_topic\": \"A good title\"}")
                 .andExpect(status().isForbidden())
                 .andExpect(content().string("User is not a member of this workspace"));
     }
@@ -142,7 +153,7 @@ class ThumbnailControllerTest {
                 "The thumbnail was generated, but it could not be stored."
         ));
 
-        send("{\"title\": \"A good title\"}")
+        send("{\"video_topic\": \"A good title\"}")
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(content().string("The thumbnail was generated, but it could not be stored."));
     }

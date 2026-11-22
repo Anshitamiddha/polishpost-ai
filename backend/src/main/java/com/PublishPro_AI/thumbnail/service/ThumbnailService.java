@@ -108,26 +108,20 @@ public class ThumbnailService {
     }
 
     /*
-     * The page's title is the text written on the thumbnail, and the
-     * description says what the video is about. The creative prompt is passed
-     * on exactly as the user wrote it. It is optional, so a blank one is left
-     * out instead of being sent as empty text.
+     * The page and the AI service use the same field names, so this only adds
+     * the workspace (from the URL, never from the body) and tidies the text.
+     * The description and the global prompt are optional, so a blank one is
+     * left out instead of being sent as empty text.
      */
     private AiThumbnailRequest toAiRequest(
             Long workspaceId,
             GenerateThumbnailRequest request
     ) {
-        String title = request.title().trim();
-        String description = blankToNull(request.description());
-
-        // Without a description the title has to describe the video too.
-        String videoTopic = description != null ? description : title;
-
         return new AiThumbnailRequest(
                 workspaceId,
-                videoTopic,
-                title,
-                blankToNull(request.prompt())
+                request.videoTopic().trim(),
+                blankToNull(request.description()),
+                blankToNull(request.globalPrompt())
         );
     }
 
@@ -171,9 +165,12 @@ public class ThumbnailService {
             );
         }
 
+        // The AI service names the field that failed, so this one is worth a log line.
+        log.warn("The AI service rejected the request: {}", String.format("%.300s", exception.getResponseBodyAsString()));
+
         return new AiServiceException(
                 HttpStatus.BAD_REQUEST,
-                "The AI service did not accept the request. Check the title, description and prompt."
+                "The AI service did not accept the request. Check the video topic, description and global prompt."
         );
     }
 
@@ -194,13 +191,13 @@ public class ThumbnailService {
     private record ErrorBody(String detail) {
     }
 
-    // The AI service's request, with its snake_case names. A null prompt is left out.
+    // The AI service's request, with its snake_case names. Null fields are left out.
     @JsonInclude(JsonInclude.Include.NON_NULL)
     record AiThumbnailRequest(
             @JsonProperty("workspace_id") Long workspaceId,
             @JsonProperty("video_topic") String videoTopic,
-            String heading,
-            @JsonProperty("visual_style") String visualStyle
+            String description,
+            @JsonProperty("global_prompt") String globalPrompt
     ) {
     }
 }

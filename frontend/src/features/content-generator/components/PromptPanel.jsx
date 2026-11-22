@@ -16,7 +16,7 @@ function PromptPanel({ prompt }) {
         </span>
         <div>
           <h2 id={titleId}>Global creative prompt</h2>
-          <p>Applies to every generated thumbnail and its revisions.</p>
+          <p>Applies to every generated thumbnail.</p>
         </div>
       </header>
 

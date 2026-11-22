@@ -7,10 +7,9 @@ calls happen here: these models only describe the data and validate it.
 from pydantic import BaseModel, ConfigDict, Field
 
 # Limits live in one place so the models and the tests always agree.
-MAX_TOPIC_LENGTH = 300
-MAX_HEADING_LENGTH = 60  # a thumbnail headline has to be read at a glance
-MAX_SUBTITLE_LENGTH = 100
-MAX_STYLE_LENGTH = 500
+MAX_VIDEO_TOPIC_LENGTH = 60  # it is written on the picture, so it has to be read at a glance
+MAX_DESCRIPTION_LENGTH = 300
+MAX_GLOBAL_PROMPT_LENGTH = 500
 MAX_WORKSPACE_ID = 2**63 - 1  # the largest value of the backend's Long workspace id
 
 
@@ -30,28 +29,24 @@ class ThumbnailRequest(BaseModel):
         le=MAX_WORKSPACE_ID,
         description="The workspace the picture belongs to. Set by the backend, never by the browser.",
     )
+    # The video's title as the user typed it. It is also the text written on the picture.
     video_topic: str = Field(
         min_length=3,
-        max_length=MAX_TOPIC_LENGTH,
-        description="What the video is about.",
+        max_length=MAX_VIDEO_TOPIC_LENGTH,
+        description="The video's title or topic. It is also the text written on the thumbnail.",
     )
-    heading: str = Field(
-        min_length=2,
-        max_length=MAX_HEADING_LENGTH,
-        description="The main text written on the thumbnail.",
-    )
-    subtitle: str | None = Field(
+    description: str | None = Field(
         default=None,
         min_length=1,
-        max_length=MAX_SUBTITLE_LENGTH,
-        description="Optional smaller text under the heading.",
+        max_length=MAX_DESCRIPTION_LENGTH,
+        description="What the video is about, in the user's words. Optional.",
     )
-    # The user's "global creative prompt" arrives here. It is optional because the
-    # user may clear it, and then the thumbnail simply has no extra direction.
-    visual_style: str | None = Field(
+    # The user's "global creative prompt". Optional, because the user may clear it,
+    # and then the thumbnail simply has no extra direction.
+    global_prompt: str | None = Field(
         default=None,
-        min_length=3,
-        max_length=MAX_STYLE_LENGTH,
+        min_length=1,
+        max_length=MAX_GLOBAL_PROMPT_LENGTH,
         description="The user's own creative direction, for example 'neon cyberpunk city, bold colors'.",
     )
 
@@ -71,6 +66,11 @@ class ThumbnailImage(BaseModel):
     )
     content_type: str = Field(description="The type the file was stored with, such as image/png.")
     size_bytes: int = Field(description="The size of the stored file.")
+    preview_data_url: str | None = Field(
+        default=None,
+        description="The picture itself as a data URL, so the page can show it at once. "
+        "The bucket stays private. Empty only if the file could not be read back.",
+    )
 
 
 class ThumbnailResponse(BaseModel):

@@ -4,6 +4,7 @@ The real Magic Hour SDK runs here, pointed at a local fake server (see
 magic_hour_fake.py). Nothing leaves this computer and no credits are spent.
 """
 
+import base64
 import logging
 
 import pytest
@@ -38,9 +39,8 @@ MODEL = "z-image-turbo"
 REQUEST = ThumbnailRequest(
     workspace_id=12,
     video_topic="Sunrise hike in the Alps",
-    heading="ALPS AT DAWN",
-    subtitle="You will not believe this view",
-    visual_style="cinematic, golden light, saturated colors",
+    description="You will not believe this view from the top",
+    global_prompt="cinematic, golden light, saturated colors",
 )
 
 
@@ -114,9 +114,55 @@ def test_the_request_to_magic_hour_has_the_documented_shape(fake, make_service):
     assert body["name"].startswith("PublishPro thumbnail ")
     # Everything the caller asked for ends up in the prompt.
     prompt = body["style"]["prompt"]
-    for wanted in (REQUEST.video_topic, REQUEST.heading, REQUEST.subtitle, REQUEST.visual_style):
+    for wanted in (REQUEST.video_topic, REQUEST.description, REQUEST.global_prompt):
         assert wanted in prompt
     assert create["headers"]["authorization"] == f"Bearer {KEY}"
+
+
+# --- the picture the page shows ---------------------------------------------------
+
+
+def test_the_preview_is_the_stored_picture_as_a_data_url(fake, make_service, output_dir):
+    result = make_service().generate(REQUEST)
+
+    prefix = "data:image/png;base64,"
+    assert result.image.preview_data_url.startswith(prefix)
+    shown = base64.b64decode(result.image.preview_data_url[len(prefix):])
+    assert shown == (output_dir / result.image.reference).read_bytes()
+
+
+def test_each_run_previews_its_own_picture_so_a_new_one_replaces_the_old(fake, make_service):
+    service = make_service()
+    fake.file_reply = (200, image_bytes("PNG", size=(640, 360)))
+    first = service.generate(REQUEST)
+    fake.file_reply = (200, image_bytes("JPEG", size=(320, 180)))
+    second = service.generate(REQUEST)
+
+    assert first.image.preview_data_url != second.image.preview_data_url
+    assert first.image.preview_data_url.startswith("data:image/png;base64,")
+    assert second.image.preview_data_url.startswith("data:image/jpeg;base64,")
+
+
+def test_a_picture_that_cannot_be_read_back_is_still_a_stored_thumbnail_without_a_preview(
+    fake, make_service, b2, monkeypatch, caplog
+):
+    def refuse(self):
+        raise PermissionError("access denied: C:/private/place")
+
+    monkeypatch.setattr(service_module.Path, "read_bytes", refuse)
+
+    result = make_service().generate(REQUEST)
+
+    assert result.image.preview_data_url is None
+    assert len(b2.puts) == 1  # it was still stored
+    assert "private" not in caplog.text
+
+
+def test_a_failed_run_returns_no_preview_at_all(fake, make_service):
+    fake.create_reply = (429, {"message": "slow down"})
+
+    with pytest.raises(ProviderRateLimitError):
+        make_service().generate(REQUEST)  # an error, so there is no answer a page could show
 
 
 # --- exactly one picture ----------------------------------------------------------
@@ -145,11 +191,13 @@ def test_if_magic_hour_ever_lists_two_pictures_only_one_is_kept(fake, make_servi
     assert files_in(output_dir) == [result.image.reference]  # the second picture is not kept
 
 
-def test_the_prompt_has_no_subtitle_line_when_none_is_given():
-    without = ThumbnailRequest(workspace_id=12, video_topic="Sunrise hike", heading="ALPS", visual_style="cinematic")
+def test_the_prompt_leaves_out_the_description_and_creative_lines_when_none_are_given():
+    bare = ThumbnailRequest(workspace_id=12, video_topic="Sunrise hike")
 
-    assert "subtitle" not in build_prompt(without)
-    assert "subtitle" in build_prompt(REQUEST)
+    assert "About the video" not in build_prompt(bare)
+    assert "Creative direction" not in build_prompt(bare)
+    assert "About the video" in build_prompt(REQUEST)
+    assert "Creative direction" in build_prompt(REQUEST)
 
 
 # --- the global creative prompt reaches Magic Hour ---------------------------------
@@ -165,9 +213,9 @@ GLOBAL_PROMPT = (
 def request_with_prompt(prompt, **changes):
     values = {
         "workspace_id": 12,
-        "video_topic": "How I built a full AI app in seven days",
-        "heading": "AI APP IN 7 DAYS",
-        "visual_style": prompt,
+        "video_topic": "AI APP IN 7 DAYS",
+        "description": "I built a full AI app in seven days",
+        "global_prompt": prompt,
     }
     return ThumbnailRequest(**{**values, **changes})
 
@@ -177,16 +225,27 @@ def prompt_sent_to_magic_hour(fake):
     return create["body"]["style"]["prompt"]
 
 
-def test_the_global_prompt_reaches_magic_hour_joined_with_the_topic_and_heading(fake, make_service):
-    make_service().generate(request_with_prompt(GLOBAL_PROMPT, subtitle="Day by day"))
+def test_all_three_inputs_reach_magic_hour_in_one_prompt(fake, make_service):
+    make_service().generate(request_with_prompt(GLOBAL_PROMPT))
 
     assert prompt_sent_to_magic_hour(fake) == (
-        "A YouTube thumbnail for a video about: How I built a full AI app in seven days. "
+        'A YouTube thumbnail for a video titled "AI APP IN 7 DAYS". '
+        "About the video: I built a full AI app in seven days. "
         f"Creative direction: {GLOBAL_PROMPT} "
-        'Write the headline "AI APP IN 7 DAYS" in huge, bold, high-contrast letters that are easy to read on a phone. '
-        'Add the smaller subtitle "Day by day" under the headline. '
+        'Write the title "AI APP IN 7 DAYS" in huge, bold, high-contrast letters that are easy to read on a phone. '
         "Keep the layout uncluttered, with one clear main subject. No other text, logos or watermarks."
     )
+
+
+def test_the_description_is_used_and_a_different_one_gives_a_different_prompt(fake, make_service):
+    service = make_service()
+
+    service.generate(request_with_prompt(None, description="a calm morning in the mountains"))
+    service.generate(request_with_prompt(None, description="a fast race through a city"))
+
+    first, second = (create["body"]["style"]["prompt"] for create in fake.creates())
+    assert "About the video: a calm morning in the mountains." in first and "race" not in first
+    assert "About the video: a fast race through a city." in second and "mountains" not in second
 
 
 def test_the_user_text_is_sent_as_written_so_another_prompt_gives_another_result(fake, make_service):
@@ -213,18 +272,26 @@ def test_without_a_prompt_the_thumbnail_is_still_requested_with_no_direction_lin
 
     prompt = prompt_sent_to_magic_hour(fake)
     assert "Creative direction" not in prompt
-    assert "How I built a full AI app in seven days" in prompt and "AI APP IN 7 DAYS" in prompt
+    assert "I built a full AI app in seven days" in prompt and "AI APP IN 7 DAYS" in prompt
+
+
+def test_without_a_description_the_topic_alone_is_enough(fake, make_service):
+    make_service().generate(request_with_prompt(GLOBAL_PROMPT, description=None))
+
+    prompt = prompt_sent_to_magic_hour(fake)
+    assert "About the video" not in prompt
+    assert 'titled "AI APP IN 7 DAYS"' in prompt and GLOBAL_PROMPT in prompt
 
 
 @pytest.mark.parametrize("ending", [".", "!", "?"])
 def test_a_prompt_that_already_ends_like_a_sentence_gets_no_extra_full_stop(ending):
     prompt = build_prompt(request_with_prompt(f"make it pop{ending}"))
 
-    assert f"Creative direction: make it pop{ending} Write the headline" in prompt
+    assert f"Creative direction: make it pop{ending} Write the title" in prompt
 
 
 def test_a_prompt_without_an_ending_gets_a_full_stop():
-    assert "Creative direction: make it pop. Write the headline" in build_prompt(request_with_prompt("make it pop"))
+    assert "Creative direction: make it pop. Write the title" in build_prompt(request_with_prompt("make it pop"))
 
 
 def test_a_new_picture_never_replaces_an_old_one(fake, make_service, output_dir):

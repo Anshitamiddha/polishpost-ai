@@ -6,6 +6,7 @@ route. Magic Hour is never called: the service is a stand-in, or the real one
 pointed at a local fake (see magic_hour_fake.py).
 """
 
+import base64
 from unittest.mock import MagicMock
 
 import pytest
@@ -52,9 +53,8 @@ KEY = "mh-SUPER-SECRET-key-123"
 BODY = {
     "workspace_id": 12,
     "video_topic": "Sunrise hike in the Alps",
-    "heading": "ALPS AT DAWN",
-    "subtitle": "You will not believe this view",
-    "visual_style": "cinematic, golden light",
+    "description": "You will not believe this view from the top",
+    "global_prompt": "cinematic, golden light",
 }
 GOOD_RESULT = ThumbnailResponse(
     status="complete",
@@ -67,6 +67,7 @@ GOOD_RESULT = ThumbnailResponse(
         object_key="workspaces/12/generated/abc123.png",
         content_type="image/png",
         size_bytes=1234,
+        preview_data_url="data:image/png;base64,AAAA",
     ),
     provider_generation_id="job-1",
     credits_charged=5,
@@ -134,6 +135,7 @@ def test_a_good_request_returns_the_normalized_answer(client, service):
             "object_key": "workspaces/12/generated/abc123.png",
             "content_type": "image/png",
             "size_bytes": 1234,
+            "preview_data_url": "data:image/png;base64,AAAA",
         },
         "provider_generation_id": "job-1",
         "credits_charged": 5,
@@ -141,23 +143,24 @@ def test_a_good_request_returns_the_normalized_answer(client, service):
     service.generate.assert_called_once_with(ThumbnailRequest(**BODY))
 
 
-def test_the_subtitle_is_optional(client, service):
-    without_subtitle = {key: value for key, value in BODY.items() if key != "subtitle"}
+def test_the_description_and_global_prompt_are_optional(client, service):
+    only_the_topic = {key: value for key, value in BODY.items() if key not in ("description", "global_prompt")}
 
-    assert post(client, without_subtitle).status_code == 200
-    assert service.generate.call_args.args[0].subtitle is None
+    assert post(client, only_the_topic).status_code == 200
+    sent = service.generate.call_args.args[0]
+    assert sent.description is None and sent.global_prompt is None
 
 
 def test_spaces_around_the_text_are_trimmed(client, service):
-    post(client, {**BODY, "heading": "   ALPS AT DAWN   "})
+    post(client, {**BODY, "video_topic": "   ALPS AT DAWN   "})
 
-    assert service.generate.call_args.args[0].heading == "ALPS AT DAWN"
+    assert service.generate.call_args.args[0].video_topic == "ALPS AT DAWN"
 
 
 # --- bad requests ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("missing", ["workspace_id", "video_topic", "heading"])
+@pytest.mark.parametrize("missing", ["workspace_id", "video_topic"])
 def test_each_required_field_is_required(client, service, missing):
     body = {key: value for key, value in BODY.items() if key != missing}
 
@@ -172,14 +175,12 @@ def test_each_required_field_is_required(client, service, missing):
     [
         {"video_topic": "  "},  # blank after trimming
         {"video_topic": "ab"},  # too short
-        {"video_topic": "x" * 301},
-        {"heading": " "},
-        {"heading": "x" * 61},  # a headline must be readable at a glance
-        {"subtitle": "  "},  # present but empty
-        {"subtitle": "x" * 101},
-        {"visual_style": "ab"},
-        {"visual_style": "x" * 501},
-        {"heading": 123},  # wrong type
+        {"video_topic": "x" * 61},  # it is written on the picture, so it has to be read at a glance
+        {"video_topic": 123},  # wrong type
+        {"description": "  "},  # present but blank
+        {"description": "x" * 301},
+        {"global_prompt": "  "},  # present but blank
+        {"global_prompt": "x" * 501},
         {"unknown_field": "x"},  # unknown fields are errors
     ],
     ids=lambda change: next(iter(change)) + "-" + str(next(iter(change.values())))[:8],
@@ -191,21 +192,25 @@ def test_bad_values_are_rejected_before_the_service(client, service, change):
     service.generate.assert_not_called()
 
 
-def test_the_creative_prompt_is_optional_but_not_empty_when_given(client, service):
-    without_prompt = {key: value for key, value in BODY.items() if key != "visual_style"}
+def test_short_but_real_text_is_accepted_for_the_optional_fields(client, service):
+    # A one or two letter description or prompt is allowed. Spring and this service agree.
+    assert post(client, {**BODY, "description": "ok", "global_prompt": "b&w"}).status_code == 200
 
-    assert post(client, without_prompt).status_code == 200
-    assert service.generate.call_args.args[0].visual_style is None
-    assert post(client, {**BODY, "visual_style": "  "}).status_code == 422  # given, but blank
+
+@pytest.mark.parametrize("old_name", ["title", "prompt", "heading", "subtitle", "visual_style"])
+def test_the_old_field_names_are_refused_so_the_layers_cannot_drift_apart(client, service, old_name):
+    response = post(client, {**BODY, old_name: "some text"})
+
+    assert response.status_code == 422
+    service.generate.assert_not_called()
 
 
 def test_the_request_has_no_field_for_a_number_of_pictures():
     assert set(ThumbnailRequest.model_fields) == {
         "workspace_id",
         "video_topic",
-        "heading",
-        "subtitle",
-        "visual_style",
+        "description",
+        "global_prompt",
     }
 
 
@@ -333,6 +338,17 @@ def real_service(fake, b2, tmp_path):
     return real
 
 
+def test_the_answer_carries_the_new_picture_itself_for_the_page_to_show(client, fake, b2, real_service, tmp_path):
+    response = post(client)
+
+    image = response.json()["image"]
+    prefix = "data:image/png;base64,"
+    assert image["preview_data_url"].startswith(prefix)
+    # What the page would draw is exactly the picture that was stored, not a placeholder.
+    shown = base64.b64decode(image["preview_data_url"][len(prefix):])
+    assert shown == (tmp_path / "thumbs" / image["reference"]).read_bytes() == b2.puts[0]["body"]
+
+
 def test_a_full_run_asks_magic_hour_once_and_answers_with_one_picture(client, fake, b2, real_service):
     response = post(client)
 
@@ -348,17 +364,17 @@ def test_a_full_run_asks_magic_hour_once_and_answers_with_one_picture(client, fa
 def test_the_global_prompt_travels_from_the_request_to_magic_hour(client, fake, real_service):
     prompt = "Create a bold, cinematic YouTube thumbnail. Leave space for a short headline."
 
-    response = post(client, {**BODY, "visual_style": prompt})
+    response = post(client, {**BODY, "global_prompt": prompt})
 
     assert response.status_code == 200
     (create,) = fake.creates()
     sent = create["body"]["style"]["prompt"]
     assert prompt in sent
-    assert BODY["video_topic"] in sent and BODY["heading"] in sent
+    assert BODY["video_topic"] in sent and BODY["description"] in sent
 
 
 def test_a_request_without_a_prompt_still_reaches_magic_hour(client, fake, real_service):
-    without_prompt = {key: value for key, value in BODY.items() if key != "visual_style"}
+    without_prompt = {key: value for key, value in BODY.items() if key != "global_prompt"}
 
     assert post(client, without_prompt).status_code == 200
     (create,) = fake.creates()

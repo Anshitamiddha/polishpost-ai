@@ -12,24 +12,32 @@ const brief = {
 
 describe("buildThumbnailRequest", () => {
   it("sends the global creative prompt exactly as it is in the brief", () => {
-    assert.equal(buildThumbnailRequest(brief).prompt, brief.prompt);
+    assert.equal(buildThumbnailRequest(brief).global_prompt, brief.prompt);
   });
 
-  it("sends the title and the description next to it", () => {
+  it("sends the video topic and the description next to it", () => {
     const request = buildThumbnailRequest(brief);
 
-    assert.equal(request.title, "AI APP IN 7 DAYS");
+    assert.equal(request.video_topic, "AI APP IN 7 DAYS");
     assert.equal(request.description, "I built a full AI app in seven days");
   });
 
   it("follows the prompt when the user changes it", () => {
     const changed = buildThumbnailRequest({ ...brief, prompt: "soft pastel colors" });
 
-    assert.equal(changed.prompt, "soft pastel colors");
+    assert.equal(changed.global_prompt, "soft pastel colors");
   });
 
   it("sends an empty prompt as empty, so the backend can leave it out", () => {
-    assert.equal(buildThumbnailRequest({ ...brief, prompt: "" }).prompt, "");
+    assert.equal(buildThumbnailRequest({ ...brief, prompt: "" }).global_prompt, "");
+  });
+
+  it("does not send the old field names", () => {
+    const request = buildThumbnailRequest(brief);
+
+    for (const old of ["title", "prompt", "heading", "subtitle", "visual_style", "workspace_id"]) {
+      assert.equal(old in request, false);
+    }
   });
 
   it("never asks for a number of thumbnails, so the backend always makes exactly one", () => {
@@ -43,8 +51,8 @@ describe("buildThumbnailRequest", () => {
   it("sends only what the backend reads", () => {
     assert.deepEqual(Object.keys(buildThumbnailRequest(brief)).sort(), [
       "description",
-      "prompt",
-      "title",
+      "global_prompt",
+      "video_topic",
     ]);
   });
 });

@@ -60,7 +60,8 @@ class ThumbnailServiceTest {
             {"success": true, "status": "complete",
              "image": {"reference": "a1.png", "width": 640, "height": 360, "format": "png",
                        "asset_id": "a1", "object_key": "workspaces/12/generated/a1.png",
-                       "content_type": "image/png", "size_bytes": 1234},
+                       "content_type": "image/png", "size_bytes": 1234,
+                       "preview_data_url": "data:image/png;base64,AAAA"},
              "provider_generation_id": "job-1", "credits_charged": 5}
             """;
 
@@ -102,9 +103,9 @@ class ThumbnailServiceTest {
         aiService.expect(requestTo(GENERATE_URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Service-Token", SECRET))
-                .andExpect(jsonPath("$.visual_style").value(PROMPT))
-                .andExpect(jsonPath("$.heading").value("AI APP IN 7 DAYS"))
-                .andExpect(jsonPath("$.video_topic").value("I built a full AI app in seven days"))
+                .andExpect(jsonPath("$.global_prompt").value(PROMPT))
+                .andExpect(jsonPath("$.video_topic").value("AI APP IN 7 DAYS"))
+                .andExpect(jsonPath("$.description").value("I built a full AI app in seven days"))
                 .andExpect(jsonPath("$.workspace_id").value(12))
                 .andRespond(withSuccess(AI_ANSWER, MediaType.APPLICATION_JSON));
 
@@ -119,6 +120,7 @@ class ThumbnailServiceTest {
         assertEquals("a1", response.image().assetId());
         assertEquals("image/png", response.image().contentType());
         assertEquals(1234, response.image().sizeBytes());
+        assertEquals("data:image/png;base64,AAAA", response.image().previewDataUrl());
         assertEquals(5, response.creditsCharged());
         assertEquals("job-1", response.providerGenerationId());
     }
@@ -126,8 +128,11 @@ class ThumbnailServiceTest {
     @Test
     void oneRequestMakesOneCallThatAsksForNoNumberOfPictures() {
         aiService.expect(requestTo(GENERATE_URL))
-                // Only these four fields: nothing in the request can ask for more than one picture.
+                // Only these four fields (workspace_id, video_topic, description, global_prompt):
+                // nothing in the request can ask for more than one picture.
                 .andExpect(jsonPath("$.length()").value(4))
+                .andExpect(jsonPath("$.heading").doesNotExist())
+                .andExpect(jsonPath("$.visual_style").doesNotExist())
                 .andExpect(jsonPath("$.image_count").doesNotExist())
                 .andExpect(jsonPath("$.count").doesNotExist())
                 .andRespond(withSuccess(AI_ANSWER, MediaType.APPLICATION_JSON));
@@ -141,7 +146,7 @@ class ThumbnailServiceTest {
     @Test
     void aDifferentPromptGivesADifferentRequest() {
         aiService.expect(requestTo(GENERATE_URL))
-                .andExpect(jsonPath("$.visual_style").value("soft pastel colors"))
+                .andExpect(jsonPath("$.global_prompt").value("soft pastel colors"))
                 .andRespond(withSuccess(AI_ANSWER, MediaType.APPLICATION_JSON));
 
         service.generate(WORKSPACE_ID, request("a video", "soft pastel colors"), EMAIL);
@@ -152,7 +157,7 @@ class ThumbnailServiceTest {
     @Test
     void surroundingSpacesAreTrimmedFromThePrompt() {
         aiService.expect(requestTo(GENERATE_URL))
-                .andExpect(jsonPath("$.visual_style").value("neon city"))
+                .andExpect(jsonPath("$.global_prompt").value("neon city"))
                 .andRespond(withSuccess(AI_ANSWER, MediaType.APPLICATION_JSON));
 
         service.generate(WORKSPACE_ID, request("a video", "   neon city  "), EMAIL);
@@ -163,10 +168,10 @@ class ThumbnailServiceTest {
     @Test
     void aBlankOrMissingPromptIsLeftOutOfTheRequest() {
         aiService.expect(requestTo(GENERATE_URL))
-                .andExpect(jsonPath("$.visual_style").doesNotExist())
+                .andExpect(jsonPath("$.global_prompt").doesNotExist())
                 .andRespond(withSuccess(AI_ANSWER, MediaType.APPLICATION_JSON));
         aiService.expect(requestTo(GENERATE_URL))
-                .andExpect(jsonPath("$.visual_style").doesNotExist())
+                .andExpect(jsonPath("$.global_prompt").doesNotExist())
                 .andRespond(withSuccess(AI_ANSWER, MediaType.APPLICATION_JSON));
 
         service.generate(WORKSPACE_ID, request("a video", "   "), EMAIL);
@@ -176,10 +181,11 @@ class ThumbnailServiceTest {
     }
 
     @Test
-    void theTitleStandsInWhenThereIsNoDescription() {
+    void aBlankDescriptionIsLeftOutButTheTopicAndPromptStillGo() {
         aiService.expect(requestTo(GENERATE_URL))
                 .andExpect(jsonPath("$.video_topic").value("AI APP IN 7 DAYS"))
-                .andExpect(jsonPath("$.heading").value("AI APP IN 7 DAYS"))
+                .andExpect(jsonPath("$.description").doesNotExist())
+                .andExpect(jsonPath("$.global_prompt").value(PROMPT))
                 .andRespond(withSuccess(AI_ANSWER, MediaType.APPLICATION_JSON));
 
         service.generate(WORKSPACE_ID, request("  ", PROMPT), EMAIL);
@@ -275,7 +281,7 @@ class ThumbnailServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
         assertEquals(
-                "The AI service did not accept the request. Check the title, description and prompt.",
+                "The AI service did not accept the request. Check the video topic, description and global prompt.",
                 error.getMessage()
         );
     }

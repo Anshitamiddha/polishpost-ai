@@ -11,6 +11,7 @@ forever. Here the steps are the SDK's own, called one by one: `create` starts th
 job, `image_projects.get` checks it, and `download_files_sync` fetches the file.
 """
 
+import base64
 import json
 import logging
 import shutil
@@ -82,6 +83,21 @@ class _SavedImage:
     extension: str  # png, jpg or webp
 
 
+def _preview_for(path: Path, content_type: str) -> str | None:
+    """The picture as a data URL, so the page can show it at once.
+
+    The bucket is private and there is no download link yet, so the picture itself
+    travels in the answer. A stored thumbnail is not worth failing over a preview
+    that cannot be read back, so that case just has no preview.
+    """
+    try:
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    except OSError as exc:
+        logger.warning("Could not read the picture back for its preview: %s", type(exc).__name__)
+        return None
+    return f"data:{content_type};base64,{encoded}"
+
+
 def _as_sentence(text: str) -> str:
     """End the text with a full stop unless it already ends like a sentence."""
     return text if text[-1] in ".!?" else text + "."
@@ -90,17 +106,19 @@ def _as_sentence(text: str) -> str:
 def build_prompt(request: ThumbnailRequest) -> str:
     """Turn the request into the sentence Magic Hour draws from.
 
-    The user's own creative direction goes in as written. The rest is only about
-    what to draw and how to keep the text readable, so it never fights the user's style.
+    It uses all three things the user wrote: the video topic (also written on the
+    picture), the description, and the global creative prompt. The creative prompt goes
+    in as written. The rest is only about what to draw and how to keep the text readable,
+    so it never fights the user's style.
     """
-    parts = [f"A YouTube thumbnail for a video about: {request.video_topic}."]
-    if request.visual_style:
-        parts.append(f"Creative direction: {_as_sentence(request.visual_style)}")
+    parts = [f'A YouTube thumbnail for a video titled "{request.video_topic}".']
+    if request.description:
+        parts.append(f"About the video: {_as_sentence(request.description)}")
+    if request.global_prompt:
+        parts.append(f"Creative direction: {_as_sentence(request.global_prompt)}")
     parts.append(
-        f'Write the headline "{request.heading}" in huge, bold, high-contrast letters that are easy to read on a phone.'
+        f'Write the title "{request.video_topic}" in huge, bold, high-contrast letters that are easy to read on a phone.'
     )
-    if request.subtitle:
-        parts.append(f'Add the smaller subtitle "{request.subtitle}" under the headline.')
     parts.append("Keep the layout uncluttered, with one clear main subject. No other text, logos or watermarks.")
     return " ".join(parts)
 
@@ -229,6 +247,7 @@ class ThumbnailGenerationService:
                 object_key=stored.object_key,
                 content_type=stored.content_type,
                 size_bytes=stored.size_bytes,
+                preview_data_url=_preview_for(saved.path, stored.content_type),
             ),
             provider_generation_id=project.id,
             credits_charged=project.credits_charged,
